@@ -2,8 +2,13 @@
 
 namespace App\Providers;
 
+use App\Models\Community;
+use App\Models\Event;
+use App\Models\Message;
+use App\Models\User;
 use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -34,5 +39,16 @@ class AppServiceProvider extends ServiceProvider
 
             return config('app.frontend_url')."/reset-password?token={$token}&email={$email}";
         });
+
+        // Short, stable morph aliases for polymorphic reportable/target
+        // columns (reports.reportable_type, moderation_actions.target_type)
+        // instead of leaking full namespaced class names into the API and
+        // the database.
+        Relation::enforceMorphMap([
+            'user' => User::class,
+            'event' => Event::class,
+            'community' => Community::class,
+            'message' => Message::class,
+        ]);
     }
 }

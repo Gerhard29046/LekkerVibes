@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Auth\AuthController;
+use App\Http\Controllers\Api\BlockController;
 use App\Http\Controllers\Api\CommunityController;
 use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\EventAttendanceController;
@@ -10,7 +11,11 @@ use App\Http\Controllers\Api\InterestController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\MembershipController;
 use App\Http\Controllers\Api\MessageController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\SavedController;
+use App\Http\Controllers\Api\UploadController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -102,4 +107,21 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::delete('/messages/{message}', [MessageController::class, 'destroy']);
+
+    Route::post('/uploads', [UploadController::class, 'store']);
+
+    Route::get('/reports', [ReportController::class, 'index']);
+    Route::post('/reports', [ReportController::class, 'store']);
+    Route::post('/reports/{report}/resolve', [ReportController::class, 'resolve']);
+    Route::post('/reports/{report}/dismiss', [ReportController::class, 'dismiss']);
+
+    Route::get('/blocks', [BlockController::class, 'index']);
+    Route::post('/blocks', [BlockController::class, 'store']);
+    Route::delete('/blocks/{blockedId}', [BlockController::class, 'destroy']);
+
+    Route::get('/saved', [SavedController::class, 'index']);
+
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
 });
