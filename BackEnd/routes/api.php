@@ -1,11 +1,13 @@
 <?php
 
 use App\Http\Controllers\Api\Auth\AuthController;
+use App\Http\Controllers\Api\CommunityController;
 use App\Http\Controllers\Api\EventAttendanceController;
 use App\Http\Controllers\Api\EventCategoryController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\InterestController;
 use App\Http\Controllers\Api\LocationController;
+use App\Http\Controllers\Api\MembershipController;
 use App\Http\Controllers\Api\ProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -68,4 +70,22 @@ Route::prefix('events')->group(function () {
 Route::prefix('activities')->group(function () {
     Route::get('/', [EventController::class, 'index']);
     Route::get('/{event}', [EventController::class, 'show']);
+});
+
+Route::prefix('communities')->group(function () {
+    Route::get('/', [CommunityController::class, 'index']);
+    Route::get('/{community}', [CommunityController::class, 'show']);
+    Route::get('/{community}/members', [MembershipController::class, 'members']);
+
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/', [CommunityController::class, 'store']);
+        Route::put('/{community}', [CommunityController::class, 'update']);
+        Route::delete('/{community}', [CommunityController::class, 'destroy']);
+
+        Route::post('/{community}/join', [MembershipController::class, 'join']);
+        Route::post('/{community}/leave', [MembershipController::class, 'leave']);
+        Route::get('/{community}/membership-requests', [MembershipController::class, 'membershipRequests']);
+        Route::post('/{community}/membership-requests/{membershipRequest}/approve', [MembershipController::class, 'approveMembershipRequest']);
+        Route::post('/{community}/membership-requests/{membershipRequest}/reject', [MembershipController::class, 'rejectMembershipRequest']);
+    });
 });
