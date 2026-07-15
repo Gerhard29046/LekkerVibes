@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, MapPin, Calendar, Sparkles, ArrowRight, ChevronDown } from 'lucide-react';
+import { Search, MapPin, Sparkles, ArrowRight, ChevronDown } from 'lucide-react';
 import { useLocation } from '@/hooks/useLocation.jsx';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';

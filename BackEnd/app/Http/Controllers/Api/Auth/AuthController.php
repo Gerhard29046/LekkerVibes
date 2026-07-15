@@ -35,6 +35,7 @@ class AuthController extends Controller
         ]);
         $user->privacySetting()->create([]);
         $user->notificationPreference()->create([]);
+        $user->transportPreference()->create([]);
 
         $token = $user->createToken($request->validated('device_name', 'lekkervibes-web'))->plainTextToken;
 

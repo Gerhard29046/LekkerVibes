@@ -1,60 +1,71 @@
-import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import React, { useState, useEffect } from 'react';
+import { profileApi } from '@/api/profileApi';
+import { uploadsApi } from '@/api/uploadsApi';
+import { locationApi } from '@/api/locationApi';
 import { X, Upload, Loader2 } from 'lucide-react';
 
-const INTERESTS_LIST = [
-  'Running', 'Walking', 'Hiking', 'Surfing', 'Cycling', 'Eating', 'Dancing',
-  'Reading', 'Gaming', 'Art', 'Volunteering', 'Worship', 'Fitness', 'Exploring', 'Socialising'
-];
+const AGE_RANGES = ['18-24', '25-34', '35-44', '45-54', '55+'];
 
-const CITIES = ['Stellenbosch', 'Somerset West', 'Cape Town', 'Paarl', 'Durbanville', 'Bellville', 'George', 'Johannesburg', 'Pretoria', 'Durban'];
-
-export default function ProfileEditor({ user, profile, onSave, onClose }) {
+export default function ProfileEditor({ profile, interests, onSave, onClose }) {
   const [form, setForm] = useState({
-    display_name: profile?.display_name || user?.full_name || '',
+    display_name: profile?.display_name || '',
     username: profile?.username || '',
     bio: profile?.bio || '',
-    city: profile?.city || '',
-    neighbourhood: profile?.neighbourhood || '',
+    location_id: profile?.location?.id || '',
     pronouns: profile?.pronouns || '',
     age_range: profile?.age_range || '',
-    interests: profile?.interests || [],
-    profile_photo: profile?.profile_photo || '',
-    cover_photo: profile?.cover_photo || '',
+    interest_ids: (profile?.interests || []).map(i => i.id),
+    avatar_media_id: null,
+    cover_media_id: null,
     alcohol_free_pref: profile?.alcohol_free_pref || false,
     family_friendly_pref: profile?.family_friendly_pref || false,
   });
+  const [avatarPreview, setAvatarPreview] = useState(profile?.avatar_url || '');
+  const [coverPreview, setCoverPreview] = useState(profile?.cover_url || '');
+  const [locations, setLocations] = useState([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(null);
 
+  useEffect(() => {
+    locationApi.popular().then(result => setLocations(result.data)).catch(() => setLocations([]));
+  }, []);
+
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
-  const toggleInterest = (i) => {
-    set('interests', form.interests.includes(i)
-      ? form.interests.filter(x => x !== i)
-      : [...form.interests, i]);
+  const toggleInterest = (id) => {
+    set('interest_ids', form.interest_ids.includes(id)
+      ? form.interest_ids.filter(x => x !== id)
+      : [...form.interest_ids, id]);
   };
 
-  const handleFileUpload = async (e, field) => {
+  const handleFileUpload = async (e, mediaField, previewSetter) => {
     const file = e.target.files[0];
     if (!file) return;
-    setUploading(field);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    set(field, file_url);
-    setUploading(null);
+    setUploading(mediaField);
+    try {
+      const media = await uploadsApi.upload(file);
+      set(mediaField, media.id);
+      previewSetter(media.url);
+    } finally {
+      setUploading(null);
+    }
   };
 
   const handleSave = async () => {
     setSaving(true);
-    let saved;
-    const data = { ...form, user_id: user.id };
-    if (profile?.id) {
-      saved = await base44.entities.UserProfile.update(profile.id, data);
-    } else {
-      saved = await base44.entities.UserProfile.create(data);
+    try {
+      const { interest_ids, ...profileFields } = form;
+      if (!profileFields.avatar_media_id) delete profileFields.avatar_media_id;
+      if (!profileFields.cover_media_id) delete profileFields.cover_media_id;
+      if (!profileFields.location_id) profileFields.location_id = null;
+
+      await profileApi.update(profileFields);
+      await profileApi.syncInterests(interest_ids);
+      const updated = await profileApi.get();
+      onSave(updated);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    onSave(saved);
   };
 
   return (
@@ -73,15 +84,15 @@ export default function ProfileEditor({ user, profile, onSave, onClose }) {
             <div>
               <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-1.5">Profile Photo</label>
               <div className="relative h-24 rounded-xl overflow-hidden bg-sand border border-border cursor-pointer group">
-                {form.profile_photo
-                  ? <img src={form.profile_photo} alt="Profile" className="w-full h-full object-cover" />
+                {avatarPreview
+                  ? <img src={avatarPreview} alt="Profile" className="w-full h-full object-cover" />
                   : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-ocean/20 to-teal/20">
                       <Upload className="w-6 h-6 text-charcoal/40" />
                     </div>
                 }
-                <input type="file" accept="image/*" onChange={e => handleFileUpload(e, 'profile_photo')}
+                <input type="file" accept="image/*" onChange={e => handleFileUpload(e, 'avatar_media_id', setAvatarPreview)}
                   className="absolute inset-0 opacity-0 cursor-pointer" />
-                {uploading === 'profile_photo' && (
+                {uploading === 'avatar_media_id' && (
                   <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                     <Loader2 className="w-5 h-5 text-white animate-spin" />
                   </div>
@@ -91,15 +102,15 @@ export default function ProfileEditor({ user, profile, onSave, onClose }) {
             <div>
               <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-1.5">Cover Photo</label>
               <div className="relative h-24 rounded-xl overflow-hidden bg-sand border border-border cursor-pointer">
-                {form.cover_photo
-                  ? <img src={form.cover_photo} alt="Cover" className="w-full h-full object-cover" />
+                {coverPreview
+                  ? <img src={coverPreview} alt="Cover" className="w-full h-full object-cover" />
                   : <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-ocean/20 to-teal/20">
                       <Upload className="w-6 h-6 text-charcoal/40" />
                     </div>
                 }
-                <input type="file" accept="image/*" onChange={e => handleFileUpload(e, 'cover_photo')}
+                <input type="file" accept="image/*" onChange={e => handleFileUpload(e, 'cover_media_id', setCoverPreview)}
                   className="absolute inset-0 opacity-0 cursor-pointer" />
-                {uploading === 'cover_photo' && (
+                {uploading === 'cover_media_id' && (
                   <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                     <Loader2 className="w-5 h-5 text-white animate-spin" />
                   </div>
@@ -111,7 +122,7 @@ export default function ProfileEditor({ user, profile, onSave, onClose }) {
           {/* Basic fields */}
           {[
             { label: 'Display Name', key: 'display_name', placeholder: 'Your name' },
-            { label: 'Username', key: 'username', placeholder: '@username' },
+            { label: 'Username', key: 'username', placeholder: 'username' },
           ].map(f => (
             <div key={f.key}>
               <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-1.5">{f.label}</label>
@@ -137,11 +148,11 @@ export default function ProfileEditor({ user, profile, onSave, onClose }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-1.5">City</label>
-              <select value={form.city} onChange={e => set('city', e.target.value)}
+              <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-1.5">Location</label>
+              <select value={form.location_id} onChange={e => set('location_id', e.target.value ? Number(e.target.value) : '')}
                 className="w-full px-4 py-2.5 rounded-xl border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean/30">
-                <option value="">Select city</option>
-                {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                <option value="">Select location</option>
+                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             </div>
             <div>
@@ -154,22 +165,31 @@ export default function ProfileEditor({ user, profile, onSave, onClose }) {
             </div>
           </div>
 
+          <div>
+            <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-1.5">Age range</label>
+            <select value={form.age_range} onChange={e => set('age_range', e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean/30">
+              <option value="">Prefer not to say</option>
+              {AGE_RANGES.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+
           {/* Interests */}
           <div>
             <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-2">Interests</label>
             <div className="flex flex-wrap gap-2">
-              {INTERESTS_LIST.map(i => (
+              {interests.map(i => (
                 <button
-                  key={i}
+                  key={i.id}
                   type="button"
-                  onClick={() => toggleInterest(i)}
+                  onClick={() => toggleInterest(i.id)}
                   className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                    form.interests.includes(i)
+                    form.interest_ids.includes(i.id)
                       ? 'bg-ocean text-white border-ocean'
                       : 'bg-white text-charcoal/60 border-border hover:border-ocean/30'
                   }`}
                 >
-                  {i}
+                  {i.name}
                 </button>
               ))}
             </div>

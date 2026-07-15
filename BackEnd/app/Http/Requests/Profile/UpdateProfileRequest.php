@@ -24,6 +24,8 @@ class UpdateProfileRequest extends FormRequest
             'pronouns' => ['sometimes', 'nullable', 'string', 'max:50'],
             'age_range' => ['sometimes', 'nullable', Rule::in(['18-24', '25-34', '35-44', '45-54', '55+'])],
             'location_id' => ['sometimes', 'nullable', 'exists:locations,id'],
+            'avatar_media_id' => ['sometimes', 'nullable', 'exists:media,id'],
+            'cover_media_id' => ['sometimes', 'nullable', 'exists:media,id'],
             'alcohol_free_pref' => ['sometimes', 'boolean'],
             'family_friendly_pref' => ['sometimes', 'boolean'],
         ];

@@ -1,70 +1,73 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { eventsApi, eventCategoriesApi } from '@/api/eventsApi';
+import { communitiesApi } from '@/api/communitiesApi';
+import { uploadsApi } from '@/api/uploadsApi';
 import { useNavigate, Link } from 'react-router-dom';
 import Navbar from '@/components/landing/Navbar';
 import { ArrowLeft, Upload, Loader2, Plus } from 'lucide-react';
 
-const CATEGORIES = ['Running', 'Hiking', 'Cycling', 'Surfing', 'Yoga', 'Dance', 'Art', 'Music', 'Food & Drink', 'Social', 'Volunteer', 'Faith', 'Sports', 'Fitness', 'Outdoors', 'Other'];
-const CITIES = ['Stellenbosch', 'Somerset West', 'Cape Town', 'Paarl', 'Durbanville', 'Bellville', 'George', 'Johannesburg', 'Pretoria', 'Durban'];
-
 export default function CreateActivity() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const [categories, setCategories] = useState([]);
   const [clubs, setClubs] = useState([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState({
-    title: '', description: '', category: '', city: '', neighbourhood: '',
-    venue_name: '', venue_address: '', date: '', start_time: '', end_time: '',
-    price: 0, is_free: true, capacity: '', is_beginner_friendly: false,
-    is_family_friendly: false, is_attend_alone_friendly: false, is_alcohol_free: false,
-    experience_level: 'all_levels', intensity: 'moderate', what_to_bring: '',
-    meeting_instructions: '', cover_image: '', club_id: '', status: 'published',
-    welcome_labels: []
+    title: '', description: '', category_id: '', community_id: '',
+    date: '', start_time: '', end_time: '',
+    price_cents: 0, is_free: true, capacity: '', is_beginner_friendly: false,
+    is_attend_alone_friendly: false, transport_notes: '',
+    cover_media_id: null,
   });
 
   useEffect(() => {
-    base44.auth.me().then(async (me) => {
-      setUser(me);
-      const memberships = await base44.entities.ClubMember.filter({ user_id: me.id, status: 'active' });
-      if (memberships.length > 0) {
-        const clubData = await Promise.all(memberships.map(m => base44.entities.Club.get(m.club_id).catch(() => null)));
-        setClubs(clubData.filter(Boolean));
-      }
-    });
+    eventCategoriesApi.list().then(setCategories).catch(() => setCategories([]));
+    communitiesApi.list({ mine: 1 }).then(result => setClubs(result.data)).catch(() => setClubs([]));
   }, []);
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
+  const [coverPreview, setCoverPreview] = useState('');
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    set('cover_image', file_url);
-    setUploading(false);
+    try {
+      const media = await uploadsApi.upload(file);
+      set('cover_media_id', media.id);
+      setCoverPreview(media.url);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    const selectedClub = clubs.find(c => c.id === form.club_id);
-    const data = {
-      ...form,
-      price: form.is_free ? 0 : Number(form.price),
-      capacity: form.capacity ? Number(form.capacity) : undefined,
-      organiser_id: user?.id,
-      organiser_name: user?.full_name,
-      club_name: selectedClub?.name || '',
-      spots_remaining: form.capacity ? Number(form.capacity) : undefined,
-    };
-    const created = await base44.entities.Activity.create(data);
-    setSaving(false);
-    navigate(`/activity/${created.id}`);
-  };
+    try {
+      const startsAt = `${form.date}T${form.start_time || '09:00'}`;
+      const endsAt = form.end_time ? `${form.date}T${form.end_time}` : null;
 
-  const labelOptions = ['Beginner-friendly', 'Solo-friendly', 'Dog-friendly', 'Family-friendly', 'Alcohol-free', 'All ages welcome', 'Inclusive space'];
-  const toggleLabel = (l) => set('welcome_labels', form.welcome_labels.includes(l) ? form.welcome_labels.filter(x => x !== l) : [...form.welcome_labels, l]);
+      const data = {
+        title: form.title,
+        description: form.description || undefined,
+        category_id: form.category_id || undefined,
+        community_id: form.community_id || undefined,
+        cover_media_id: form.cover_media_id || undefined,
+        is_free: form.is_free,
+        price_cents: form.is_free ? undefined : Math.round(Number(form.price_cents) * 100),
+        capacity: form.capacity ? Number(form.capacity) : undefined,
+        is_beginner_friendly: form.is_beginner_friendly,
+        is_attend_alone_friendly: form.is_attend_alone_friendly,
+        transport_notes: form.transport_notes || undefined,
+        occurrences: [{ starts_at: startsAt, ends_at: endsAt }],
+      };
+      const created = await eventsApi.create(data);
+      navigate(`/activity/${created.id}`);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-cream">
@@ -81,8 +84,8 @@ export default function CreateActivity() {
           <div>
             <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-2">Cover Image</label>
             <div className="relative h-44 rounded-2xl overflow-hidden bg-sand border-2 border-dashed border-border cursor-pointer group">
-              {form.cover_image
-                ? <img src={form.cover_image} alt="Cover" className="w-full h-full object-cover" />
+              {coverPreview
+                ? <img src={coverPreview} alt="Cover" className="w-full h-full object-cover" />
                 : <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-charcoal/40">
                     <Upload className="w-8 h-8" />
                     <span className="text-sm">Upload cover image</span>
@@ -107,15 +110,15 @@ export default function CreateActivity() {
                 rows={4} placeholder="Describe your activity..." className={`${inputCls} resize-none`} />
             </Field>
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Category *">
-                <select required value={form.category} onChange={e => set('category', e.target.value)} className={inputCls}>
+              <Field label="Category">
+                <select value={form.category_id} onChange={e => set('category_id', e.target.value)} className={inputCls}>
                   <option value="">Select category</option>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </Field>
-              <Field label="Link to Club">
-                <select value={form.club_id} onChange={e => set('club_id', e.target.value)} className={inputCls}>
-                  <option value="">No club</option>
+              <Field label="Link to Community">
+                <select value={form.community_id} onChange={e => set('community_id', e.target.value)} className={inputCls}>
+                  <option value="">No community</option>
                   {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </Field>
@@ -136,26 +139,10 @@ export default function CreateActivity() {
             </div>
           </Section>
 
-          <Section title="Location">
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="City *">
-                <select required value={form.city} onChange={e => set('city', e.target.value)} className={inputCls}>
-                  <option value="">Select city</option>
-                  {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </Field>
-              <Field label="Neighbourhood">
-                <input value={form.neighbourhood} onChange={e => set('neighbourhood', e.target.value)}
-                  placeholder="e.g. De Waterkant" className={inputCls} />
-              </Field>
-            </div>
-            <Field label="Venue Name">
-              <input value={form.venue_name} onChange={e => set('venue_name', e.target.value)}
-                placeholder="e.g. Riebeek Park" className={inputCls} />
-            </Field>
-            <Field label="Meeting Instructions">
-              <input value={form.meeting_instructions} onChange={e => set('meeting_instructions', e.target.value)}
-                placeholder="Where exactly to meet" className={inputCls} />
+          <Section title="Meeting point & transport">
+            <Field label="How to get there / where to meet">
+              <textarea value={form.transport_notes} onChange={e => set('transport_notes', e.target.value)}
+                rows={3} placeholder="e.g. Meet at the main entrance of Riebeek Park, street parking available" className={`${inputCls} resize-none`} />
             </Field>
           </Section>
 
@@ -168,7 +155,7 @@ export default function CreateActivity() {
             </div>
             {!form.is_free && (
               <Field label="Price (R)">
-                <input type="number" min="0" value={form.price} onChange={e => set('price', e.target.value)}
+                <input type="number" min="0" value={form.price_cents} onChange={e => set('price_cents', e.target.value)}
                   placeholder="0" className={inputCls} />
               </Field>
             )}
@@ -178,44 +165,11 @@ export default function CreateActivity() {
             </Field>
           </Section>
 
-          <Section title="Activity Details">
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Experience Level">
-                <select value={form.experience_level} onChange={e => set('experience_level', e.target.value)} className={inputCls}>
-                  {['all_levels', 'beginner', 'intermediate', 'advanced'].map(v => (
-                    <option key={v} value={v}>{v.replace('_', ' ')}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Intensity">
-                <select value={form.intensity} onChange={e => set('intensity', e.target.value)} className={inputCls}>
-                  {['low', 'moderate', 'high'].map(v => <option key={v} value={v}>{v}</option>)}
-                </select>
-              </Field>
-            </div>
-            <Field label="What to Bring">
-              <input value={form.what_to_bring} onChange={e => set('what_to_bring', e.target.value)}
-                placeholder="e.g. Water bottle, comfortable shoes" className={inputCls} />
-            </Field>
-          </Section>
-
           <Section title="Welcome Labels">
-            <div className="flex flex-wrap gap-2">
-              {labelOptions.map(l => (
-                <button key={l} type="button" onClick={() => toggleLabel(l)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                    form.welcome_labels.includes(l) ? 'bg-teal text-white border-teal' : 'bg-white text-charcoal/60 border-border hover:border-teal/30'
-                  }`}>
-                  {l}
-                </button>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-3 mt-3">
+            <div className="grid grid-cols-2 gap-3">
               {[
                 { key: 'is_beginner_friendly', label: 'Beginner friendly' },
-                { key: 'is_family_friendly', label: 'Family friendly' },
                 { key: 'is_attend_alone_friendly', label: 'Great to attend solo' },
-                { key: 'is_alcohol_free', label: 'Alcohol-free' },
               ].map(p => (
                 <label key={p.key} className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={form[p.key]} onChange={e => set(p.key, e.target.checked)} className="w-4 h-4 rounded accent-teal" />

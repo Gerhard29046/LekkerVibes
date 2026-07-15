@@ -21,7 +21,7 @@ class ProfileController extends Controller
             'interests', 'privacySetting', 'notificationPreference', 'transportPreference',
         ]);
 
-        return response()->json(['profile' => new ProfileResource($user)]);
+        return response()->json(['data' => new ProfileResource($user)]);
     }
 
     public function update(UpdateProfileRequest $request): JsonResponse

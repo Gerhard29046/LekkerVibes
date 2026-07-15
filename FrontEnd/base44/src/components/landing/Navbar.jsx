@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Menu, X, ChevronDown, User, Plus, ChevronRight } from 'lucide-react';
+import { MapPin, Menu, X, ChevronDown, User, Plus } from 'lucide-react';
 import { useLocation } from '@/hooks/useLocation.jsx';
 import { useAuth } from '@/lib/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';

@@ -1,56 +1,61 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { communitiesApi } from '@/api/communitiesApi';
+import { locationApi } from '@/api/locationApi';
+import { uploadsApi } from '@/api/uploadsApi';
 import { useNavigate, Link } from 'react-router-dom';
 import Navbar from '@/components/landing/Navbar';
 import { ArrowLeft, Upload, Loader2, Users } from 'lucide-react';
 
-const CITIES = ['Stellenbosch', 'Somerset West', 'Cape Town', 'Paarl', 'Durbanville', 'Bellville', 'George', 'Johannesburg', 'Pretoria', 'Durban'];
-const CATEGORIES = ['Running', 'Hiking', 'Cycling', 'Surfing', 'Yoga', 'Dance', 'Art', 'Music', 'Food & Drink', 'Social', 'Volunteer', 'Faith', 'Sports', 'Fitness', 'Outdoors', 'Book Club', 'Tech', 'Photography'];
-
 export default function CreateClub() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(null);
+  const [locations, setLocations] = useState([]);
+  const [previews, setPreviews] = useState({});
   const [form, setForm] = useState({
-    name: '', description: '', city: '', neighbourhood: '',
-    membership_type: 'open', is_free: true, membership_fee: 0,
-    categories: [], guidelines: '', cover_image: '', logo: ''
+    name: '', description: '', location_id: '',
+    join_policy: 'open', guidelines: '',
+    cover_media_id: null, logo_media_id: null,
   });
 
-  useEffect(() => { base44.auth.me().then(setUser); }, []);
+  useEffect(() => {
+    locationApi.popular().then(result => setLocations(result.data)).catch(() => setLocations([]));
+  }, []);
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
-
-  const toggleCategory = (c) => set('categories', form.categories.includes(c)
-    ? form.categories.filter(x => x !== c) : [...form.categories, c]);
 
   const handleUpload = async (e, field) => {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(field);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    set(field, file_url);
-    setUploading(null);
+    try {
+      const media = await uploadsApi.upload(file);
+      set(field, media.id);
+      setPreviews(p => ({ ...p, [field]: media.url }));
+    } finally {
+      setUploading(null);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    const slug = form.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    const club = await base44.entities.Club.create({
-      ...form,
-      slug,
-      membership_fee: form.is_free ? 0 : Number(form.membership_fee),
-      organiser_id: user?.id,
-      organiser_name: user?.full_name,
-      member_count: 1,
-      status: 'active',
-    });
-    // Auto-join as organiser
-    await base44.entities.ClubMember.create({ club_id: club.id, user_id: user?.id, role: 'organiser', status: 'active' });
-    setSaving(false);
-    navigate(`/club/${club.id}`);
+    try {
+      const data = {
+        name: form.name,
+        description: form.description || undefined,
+        location_id: form.location_id || undefined,
+        join_policy: form.join_policy,
+        visibility: 'public',
+        cover_media_id: form.cover_media_id || undefined,
+        logo_media_id: form.logo_media_id || undefined,
+        rules: form.guidelines ? [{ title: 'Community Guidelines', description: form.guidelines }] : undefined,
+      };
+      const club = await communitiesApi.create(data);
+      navigate(`/club/${club.id}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -68,14 +73,14 @@ export default function CreateClub() {
             <h3 className="font-heading font-semibold text-charcoal text-sm">Group Images</h3>
             <div className="grid grid-cols-2 gap-4">
               {[
-                { field: 'cover_image', label: 'Cover Image', h: 'h-36' },
-                { field: 'logo', label: 'Logo / Icon', h: 'h-36' },
+                { field: 'cover_media_id', label: 'Cover Image', h: 'h-36' },
+                { field: 'logo_media_id', label: 'Logo / Icon', h: 'h-36' },
               ].map(({ field, label, h }) => (
                 <div key={field}>
                   <label className="text-xs font-semibold text-charcoal/60 block mb-1.5">{label}</label>
                   <div className={`relative ${h} rounded-xl overflow-hidden bg-sand border-2 border-dashed border-border cursor-pointer`}>
-                    {form[field]
-                      ? <img src={form[field]} alt={label} className="w-full h-full object-cover" />
+                    {previews[field]
+                      ? <img src={previews[field]} alt={label} className="w-full h-full object-cover" />
                       : <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-charcoal/40">
                           <Upload className="w-6 h-6" />
                           <span className="text-xs">Upload</span>
@@ -105,33 +110,12 @@ export default function CreateClub() {
               <textarea value={form.description} onChange={e => set('description', e.target.value)}
                 rows={4} placeholder="What is your group about? Who is it for?" className={`${inputCls} resize-none`} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-charcoal/60 block mb-1.5">City *</label>
-                <select required value={form.city} onChange={e => set('city', e.target.value)} className={inputCls}>
-                  <option value="">Select city</option>
-                  {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-charcoal/60 block mb-1.5">Neighbourhood</label>
-                <input value={form.neighbourhood} onChange={e => set('neighbourhood', e.target.value)}
-                  placeholder="e.g. Dorp Street area" className={inputCls} />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-5 border border-sand space-y-4">
-            <h3 className="font-heading font-semibold text-charcoal text-sm">Categories</h3>
-            <div className="flex flex-wrap gap-2">
-              {CATEGORIES.map(c => (
-                <button key={c} type="button" onClick={() => toggleCategory(c)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                    form.categories.includes(c) ? 'bg-ocean text-white border-ocean' : 'bg-white text-charcoal/60 border-border hover:border-ocean/30'
-                  }`}>
-                  {c}
-                </button>
-              ))}
+            <div>
+              <label className="text-xs font-semibold text-charcoal/60 block mb-1.5">Location</label>
+              <select value={form.location_id} onChange={e => set('location_id', e.target.value ? Number(e.target.value) : '')} className={inputCls}>
+                <option value="">Select location</option>
+                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
             </div>
           </div>
 
@@ -139,24 +123,14 @@ export default function CreateClub() {
             <h3 className="font-heading font-semibold text-charcoal text-sm">Membership</h3>
             <div>
               <label className="text-xs font-semibold text-charcoal/60 block mb-1.5">Join Type</label>
-              <select value={form.membership_type} onChange={e => set('membership_type', e.target.value)} className={inputCls}>
+              <select value={form.join_policy} onChange={e => set('join_policy', e.target.value)} className={inputCls}>
                 {[
                   { value: 'open', label: 'Open — anyone can join' },
-                  { value: 'approval', label: 'Approval required' },
+                  { value: 'request', label: 'Approval required' },
                   { value: 'invite_only', label: 'Invite only' },
                 ].map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.is_free} onChange={e => set('is_free', e.target.checked)} className="w-4 h-4 rounded accent-ocean" />
-              <span className="text-sm font-medium text-charcoal">Free to join</span>
-            </label>
-            {!form.is_free && (
-              <div>
-                <label className="text-xs font-semibold text-charcoal/60 block mb-1.5">Membership Fee (R/month)</label>
-                <input type="number" min="0" value={form.membership_fee} onChange={e => set('membership_fee', e.target.value)} className={inputCls} />
-              </div>
-            )}
           </div>
 
           <div className="bg-white rounded-2xl p-5 border border-sand">

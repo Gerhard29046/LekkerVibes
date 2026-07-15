@@ -4,6 +4,27 @@ Running log of professional decisions made while building LekkerVibes from
 scratch, in case a future session (human or agent) needs to know *why*
 something is the way it is. Newest entries at the top.
 
+## 2026-07-15 — Removed `@base44/sdk` and `@base44/vite-plugin`; `@` alias now explicit
+
+Once every frontend call site was migrated off the Base44 SDK (see
+`BASE44_REFERENCE_MAP.md`), both packages were removed from `package.json`
+and `vite.config.js`. This surfaced a hidden dependency: `@base44/vite-
+plugin` was silently providing the `@` → `./src` path alias (jsconfig.json's
+`paths` mapping only affects the TS language server/editor, not Vite's own
+module resolution). Removing the plugin broke every `@/...` import at build
+time. Fixed by adding an explicit `resolve.alias` block to `vite.config.js`.
+Side benefit: the production bundle dropped from ~654KB to ~538KB. Package
+renamed from `base44-app` to `lekkervibes-frontend` in the same pass.
+
+## 2026-07-15 — Dropped Base44-specific auth features with no backend equivalent
+
+Email-OTP registration verification and "Continue with Google" were both
+Base44-platform features with no Laravel-side implementation decided yet.
+Rather than fake them or block the migration on building them, `Register.jsx`
+now registers directly (no OTP step) and the Google buttons were removed
+from `Login.jsx`/`Register.jsx`. Revisit once/if OAuth is prioritized —
+`GoogleIcon.jsx` was left in place (unused) for that.
+
 ## 2026-07-15 — Optional auth on public GET routes: `$request->user('sanctum')`, not `$request->user()`
 
 Public browsing routes (`GET /api/events`, `/api/events/{event}`, and every

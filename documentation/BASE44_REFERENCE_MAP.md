@@ -127,23 +127,42 @@ elsewhere in this migration:
 | `User` | `User.jsonc` | `users` | Only defines a `role` enum (`admin`/`user`) — Base44's own identity/auth record supplies everything else (`id`, `email`, `full_name`, etc.) via `base44.auth.me()`, not via `base44.entities.User.*` |
 | `UserProfile` | `UserProfile.jsonc` (**empty file** — no schema defined in this export) | `user_profiles` | Actual shape has to be inferred from usage: `src/components/profile/ProfileEditor.jsx` and `src/pages/Profile.jsx` read/write `user_id`, `display_name`, `username`, `bio`, `city`, `neighbourhood`, `pronouns`, `age_range`, `interests` (array), `profile_photo`, `cover_photo`, `alcohol_free_pref`, `family_friendly_pref`, `member_since`, `is_verified` |
 
-## Replacement status
+## Replacement status — UPDATE (post-migration)
 
-Every call site identified above is currently **Not yet replaced — pending backend
-API**. As of this inventory, `FrontEnd/base44/src/api/` contains only
-`base44Client.js`; none of `apiClient.js`, `authApi.js`, `profileApi.js`,
-`locationApi.js`, `eventsApi.js`, `activitiesApi.js`, `communitiesApi.js`,
-`messagesApi.js`, `uploadsApi.js`, `reportsApi.js`, `savedApi.js`, or
-`notificationsApi.js` exist yet, and no file under `src/` calls anything other than
-`base44.*`. No partial migration was found.
+**All call sites below are now replaced.** `@base44/sdk` and
+`@base44/vite-plugin` have been removed from `package.json` and
+`vite.config.js` entirely — there are zero runtime Base44 references left in
+`FrontEnd/base44/src/**`. The `@` path alias that `@base44/vite-plugin` was
+silently providing is now configured directly in `vite.config.js`
+(`resolve.alias`). `src/api/` now contains `apiClient.js` plus one module per
+domain: `authApi.js`, `profileApi.js`, `locationApi.js`, `eventsApi.js`
+(also exported as `activitiesApi`), `eventCategoriesApi` (same file),
+`interestsApi.js`, `communitiesApi.js`, `messagesApi.js`, `uploadsApi.js`,
+`reportsApi.js`, `blocksApi.js`, `savedApi.js`, `notificationsApi.js`.
 
 | Area | Status |
 |---|---|
-| Auth (login, register, OTP, password reset, logout, session check) | Not yet replaced — pending backend API |
-| User profile (read/update, photo upload) | Not yet replaced — pending backend API |
-| Activities / events (list, filter, get, create) | Not yet replaced — pending backend API |
-| Communities / clubs (list, filter, get, create, membership) | Not yet replaced — pending backend API |
-| Group chat / messages (list, create, delete, real-time subscribe) | Not yet replaced — pending backend API (real-time transport also undecided) |
-| File uploads (cover images, avatars) | Not yet replaced — pending backend API |
-| Notifications, reports, reviews, saved activities | Not yet replaced — pending backend API (also currently unused/unwired in the frontend itself) |
-| City/location lookup | Not yet replaced — pending backend API (frontend currently uses hardcoded city lists, not even a Base44 call) |
+| Auth (login, register, password reset, logout, session check) | **Replaced.** Email-OTP verification and Google OAuth were dropped, not ported — no backend equivalent exists (see `FEATURE_STATUS.md`) |
+| User profile (read/update, photo upload) | **Replaced.** `ProfileEditor.jsx` now uploads via `uploadsApi` and saves `avatar_media_id`/`cover_media_id`, not a raw URL string |
+| Activities / events (list, filter, get, create, join/leave, save) | **Replaced.** `eventsApi` + `EventAttendanceController`; `CreateActivity.jsx` creates single-occurrence events only (no recurrence UI, no venue picker — see `FEATURE_STATUS.md`) |
+| Communities / clubs (list, filter, get, create, membership) | **Replaced.** `communitiesApi` + `MembershipController`; `CreateClub.jsx`'s free-text "categories" multi-select was dropped (no `community_categories` concept in the new schema) in favour of the real `rules` field |
+| Group chat / messages (list, create, delete, real-time subscribe) | **Replaced, transport downgraded to polling.** `GroupChat.jsx` now keys off a `conversationId` route param (was Base44's `groupType`/`groupId`) and polls every 4s — see the real-time decision in `DECISIONS.md` |
+| File uploads (cover images, avatars) | **Replaced.** Generic `POST /api/uploads` returns a `media_id` + public URL; every "upload a photo" flow now does upload-then-reference instead of Base44's inline `file_url` |
+| Notifications, reports, saved activities | **Replaced except notifications-as-a-feature.** `reportsApi`/`savedApi` are wired (report buttons on `ActivityDetail`/`ClubDetail`, saved list on `Profile`); a notifications UI was not built even though the API exists (nothing dispatches notifications server-side yet) |
+| Reviews | **Not replaced — feature not built.** No `reviews` table/model/endpoint exists yet; this was already unused in the Base44-era frontend |
+| City/location lookup | **Partially replaced.** `locationApi` exists and powers the profile/community location dropdowns (via `locationApi.popular()`), but `useLocation()`'s city switcher (navbar, Discover, landing sections) is still a hardcoded city list, not backed by the `locations` table — city-based filtering on event/community lists was left unwired since it needs a `location_id`, not a free-text city name (documented in `FEATURE_STATUS.md` rather than faked) |
+
+## Files still containing the literal string "base44" (informational only)
+
+None of these are imported by any live code path (verified via a full
+`grep -r base44 src/` sweep, cross-checked against actual import graphs):
+
+- `src/api/base44Client.js` — orphaned, nothing imports it anymore
+- `src/lib/app-params.js` — orphaned, only ever imported by `base44Client.js`
+- `src/components/ui/image.jsx` — orphaned, not imported anywhere; still
+  contains the `media.base44.com` hostname special-case noted above
+- `src/lib/AuthContext.jsx` — one code comment referencing "the Base44-era
+  loading gate", not an import
+
+Left in place per the project's file-deletion policy — not deleted, not
+wired into anything. Candidates for deletion once Gerhard approves.

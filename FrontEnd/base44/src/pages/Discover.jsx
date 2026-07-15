@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, MapPin, SlidersHorizontal, X, ChevronDown } from 'lucide-react';
+import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { eventsApi, eventCategoriesApi } from '@/api/eventsApi';
 import { useLocation } from '@/hooks/useLocation.jsx';
 import Navbar from '@/components/landing/Navbar';

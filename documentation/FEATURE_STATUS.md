@@ -28,22 +28,24 @@ Legend: ⬜ Not started · 🟨 In progress · ✅ Done · 🚫 Blocked
 | Reports/blocks API | ✅ | Live-tested. Blocking doesn't yet filter blocked users out of listings (recorded only) |
 | Saved API | ✅ | Live-tested |
 | Notifications API | ✅ | Endpoint works but no notification types are dispatched yet — always empty until a later pass |
-| Frontend API client layer (`src/api/*.js`) | ⬜ | Backend is ready for this now |
-| Frontend: Base44 auth replaced | ⬜ | |
-| Frontend: Base44 entity calls replaced | ⬜ | |
-| Public site pages | ⬜ | Some pages exist from the Base44 export reference; need review against the full route list in the project brief |
-| Signed-in app shell (`/app/*`) | ⬜ | Not yet started — current routes are the pre-restructure Base44 route table |
-| Backend tests (Pest/PHPUnit) | ⬜ | Every endpoint above was manually live-tested against the dev server, not covered by an automated test suite yet |
-| Frontend tests (build/lint/routing/integration) | ⬜ | |
-| Production build verified | 🟨 | Verified once at the raw-Base44-export stage; needs re-verification after each major integration step |
+| Frontend API client layer (`src/api/*.js`) | ✅ | `apiClient.js` + 12 domain modules, matches `API.md` |
+| Frontend: Base44 auth replaced | ✅ | AuthContext, Login, Register, ForgotPassword, ResetPassword, Navbar, PageNotFound all on `authApi`/Sanctum tokens |
+| Frontend: Base44 entity calls replaced | ✅ | Discover, Clubs, ActivityDetail, ClubDetail, landing sections, Profile, ProfileEditor, CreateActivity, CreateClub, GroupChat — all on the real API. `@base44/sdk` and `@base44/vite-plugin` removed from `package.json`/`vite.config.js` entirely (0 runtime references — see `BASE44_REFERENCE_MAP.md`) |
+| Public site pages | 🟨 | `/`, `/discover`, `/clubs`, `/safety`, `/login`, `/register`, `/forgot-password`, `/reset-password` wired to real data. `/communities`, `/cities`, `/how-it-works`, `/for-organisers`, `/about`, `/download` from the product brief don't exist as pages yet |
+| Signed-in app shell (`/app/*`) | ⬜ | Not built — current signed-in pages (`/profile`, `/create-activity`, `/create-club`, `/chat/:conversationId`) live at top-level routes, not under an `/app` shell with the bottom-nav pattern the brief describes |
+| Backend tests (Pest/PHPUnit) | ⬜ | Every endpoint was manually live-tested against the dev server, not covered by an automated test suite yet |
+| Frontend tests (build/lint/routing/integration) | 🟨 | `npm run build` and `npm run lint` both pass clean; no automated test runner (Vitest/Playwright) installed — every page was verified by fetching it through the Vite dev server transform pipeline (catches syntax/import errors) plus live API calls simulating what each page does, not by driving a real browser |
+| Production build verified | ✅ | `npm run build` succeeds (538KB main bundle, down from 654KB after removing `@base44/sdk`); `npm run lint` clean |
 
 ## Known limitations (current)
 
-- The frontend still runs entirely on the Base44 SDK — no feature is
-  connected to the new Laravel API yet, even though the API is ready.
-- No real-time transport (see `DECISIONS.md` — polling for v1).
-- Google OAuth login (referenced in the Base44 `Login.jsx`/`Register.jsx`)
-  has no backend equivalent decided yet.
+- No real-time transport (see `DECISIONS.md` — polling for v1, 4s interval
+  in `GroupChat.jsx`).
+- Google OAuth login (referenced in the original Base44 `Login.jsx`/
+  `Register.jsx`) was dropped — no backend OAuth strategy decided yet.
+- Email-OTP registration verification (Base44-specific) was dropped —
+  registration is immediate (no email verification step yet; `User.
+  email_verified_at` exists in the schema but nothing sets it).
 - Blocking is recorded but not yet enforced (doesn't filter a blocked
   user's content out of feeds/listings/messaging).
 - Notifications table exists and the API works, but nothing in the backend
@@ -54,6 +56,17 @@ Legend: ⬜ Not started · 🟨 In progress · ✅ Done · 🚫 Blocked
 - Recurring events: `recurring_schedules` table and model exist, but there
   is no server-side generation of `event_occurrences` from a recurrence
   rule — occurrences must currently be created explicitly at event-creation
-  time.
+  time, and `CreateActivity.jsx` only creates single-occurrence events.
+- No venue creation flow — `CreateActivity.jsx` doesn't let organisers pick
+  or create a `Venue`; events are created with `venue_id` null and rely on
+  the free-text `transport_notes` field for meeting-point info instead.
+- Discover/landing sections don't yet filter by the user's selected city —
+  `useLocation()`'s city picker is still a hardcoded list (not backed by
+  the real `locations` table), and event/community list endpoints need a
+  `location_id`, not a free-text city name, so that wiring was left as a
+  follow-up rather than faked.
+- Profile editing has no UI for transport preferences yet (the API exists
+  and registration now seeds a default row, but `ProfileEditor.jsx` only
+  covers profile fields, privacy is implicit-default, and interests).
 - No automated backend or frontend test suite yet — everything verified in
-  this phase was live/manual testing against the running dev server.
+  this phase was live/manual testing against the running dev servers.
