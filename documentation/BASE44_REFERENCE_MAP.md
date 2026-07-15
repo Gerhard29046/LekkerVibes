@@ -152,17 +152,26 @@ domain: `authApi.js`, `profileApi.js`, `locationApi.js`, `eventsApi.js`
 | Reviews | **Not replaced — feature not built.** No `reviews` table/model/endpoint exists yet; this was already unused in the Base44-era frontend |
 | City/location lookup | **Partially replaced.** `locationApi` exists and powers the profile/community location dropdowns (via `locationApi.popular()`), but `useLocation()`'s city switcher (navbar, Discover, landing sections) is still a hardcoded city list, not backed by the `locations` table — city-based filtering on event/community lists was left unwired since it needs a `location_id`, not a free-text city name (documented in `FEATURE_STATUS.md` rather than faked) |
 
-## Files still containing the literal string "base44" (informational only)
+## Deprecated / orphaned files — full deletion-approval report
 
-None of these are imported by any live code path (verified via a full
-`grep -r base44 src/` sweep, cross-checked against actual import graphs):
+Per the project's file-deletion policy, nothing below was deleted. This is
+the complete list of files disconnected from runtime as of the Base44
+migration, kept in place pending Gerhard's explicit approval to remove.
 
-- `src/api/base44Client.js` — orphaned, nothing imports it anymore
-- `src/lib/app-params.js` — orphaned, only ever imported by `base44Client.js`
-- `src/components/ui/image.jsx` — orphaned, not imported anywhere; still
-  contains the `media.base44.com` hostname special-case noted above
-- `src/lib/AuthContext.jsx` — one code comment referencing "the Base44-era
-  loading gate", not an import
+**Orphaned frontend source** (not imported by any live code path — verified
+via a full `grep -r base44 src/` sweep cross-checked against actual import
+graphs):
 
-Left in place per the project's file-deletion policy — not deleted, not
-wired into anything. Candidates for deletion once Gerhard approves.
+- `FrontEnd/base44/src/api/base44Client.js` — the old Base44 SDK client singleton, nothing imports it anymore
+- `FrontEnd/base44/src/lib/app-params.js` — Base44 app-id/token bootstrap helper, only ever imported by `base44Client.js`
+- `FrontEnd/base44/src/components/ui/image.jsx` — responsive image component with `media.base44.com`-specific CDN transform logic; not imported anywhere
+- `FrontEnd/base44/src/components/GoogleIcon.jsx` — only used by the Google OAuth buttons removed from `Login.jsx`/`Register.jsx` (no backend OAuth strategy exists yet — see `DECISIONS.md`)
+
+**Non-code Base44 platform artifacts:**
+
+- `FrontEnd/base44/base44/config.jsonc` — Base44 CLI project/site config (`installCommand`, `serveCommand`, etc.), meaningless without the Base44 platform
+- `FrontEnd/base44/base44/entities/*.jsonc` (12 files: `Activity`, `ActivityAttendance`, `City`, `Club`, `ClubMember`, `GroupMessage`, `Notification`, `Report`, `Review`, `SavedActivity`, `User`, `UserProfile`) — Base44 design-time entity schemas, fully superseded by the MySQL schema in `DATABASE.md`
+
+**Stale-but-not-code:** `AGENTS.md` and `README.md` at the repo root still describe the original Base44 CLI workflow (`base44 dev`, publishing through the Base44 dashboard, `.env.local` with `VITE_BASE44_APP_ID`) — none of this applies anymore. Not deletion candidates (they're documentation, not runtime code) but worth a rewrite pass to point at `documentation/LOCAL_SETUP.md` instead; left untouched so far since they don't affect the running application.
+
+One code comment in `FrontEnd/base44/src/lib/AuthContext.jsx` references "the Base44-era loading gate" — historical context, not a dependency, not a candidate for anything.
