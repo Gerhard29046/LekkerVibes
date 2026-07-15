@@ -4,6 +4,25 @@ Running log of professional decisions made while building LekkerVibes from
 scratch, in case a future session (human or agent) needs to know *why*
 something is the way it is. Newest entries at the top.
 
+## 2026-07-15 — Optional auth on public GET routes: `$request->user('sanctum')`, not `$request->user()`
+
+Public browsing routes (`GET /api/events`, `/api/events/{event}`, and every
+other public list/detail endpoint) are **not** wrapped in `auth:sanctum`
+middleware — a guest must be able to hit them. But a logged-in user sends a
+Bearer token anyway and expects personalization (`saved_by_me`,
+`my_attendance_status`, a `mine=1` filter). Plain `$request->user()` resolves
+against the app's *default* guard (`web`, session-based) and is `null` even
+with a valid Bearer token, because no `auth:sanctum` middleware ran to
+switch the default guard for the request. **Fix: call
+`$request->user('sanctum')` explicitly** — this queries the Sanctum guard
+directly regardless of middleware, returning the token's user if present or
+null for guests, without ever aborting the request. Route handlers under
+`auth:sanctum` middleware can keep using plain `$request->user()` since the
+middleware already resolved it — but resource classes and any shared code
+that might run on both public and protected routes should use the explicit
+`'sanctum'` guard name to be correct either way. Found and fixed via live
+testing of `saved_by_me` returning `false` for an authenticated request.
+
 ## 2026-07-15 — `communities.member_count` is maintained by the API layer, not the database
 
 It's a denormalized counter (avoids a `COUNT(*)` on `community_members` on
