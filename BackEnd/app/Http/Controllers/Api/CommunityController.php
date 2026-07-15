@@ -65,7 +65,10 @@ class CommunityController extends Controller
     {
         $user = $request->user('sanctum');
 
-        $community->load(['location', 'coverMedia', 'logoMedia', 'creator', 'rules', 'images.media']);
+        $community->load([
+            'location', 'coverMedia', 'logoMedia', 'creator', 'rules', 'images.media',
+            'conversations' => fn ($q) => $q->where('type', 'welcome_group'),
+        ]);
 
         if ($user) {
             $community->load(['members' => fn ($q) => $q->where('user_id', $user->id)]);

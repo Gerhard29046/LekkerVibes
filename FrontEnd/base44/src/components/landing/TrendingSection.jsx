@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, ArrowRight } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { eventsApi } from '@/api/eventsApi';
 import ActivityCard from '@/components/landing/ActivityCard';
 import { useLocation } from '@/hooks/useLocation.jsx';
 import { motion } from 'framer-motion';
@@ -13,8 +13,8 @@ export default function TrendingSection() {
 
   useEffect(() => {
     setLoading(true);
-    base44.entities.Activity.filter({ city: selectedCity, status: 'published' }, '-trending_score', 4)
-      .then(setActivities)
+    eventsApi.list({ per_page: 4 })
+      .then(result => setActivities(result.data))
       .catch(() => setActivities([]))
       .finally(() => setLoading(false));
   }, [selectedCity]);

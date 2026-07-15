@@ -56,7 +56,7 @@ const AuthenticatedApp = () => {
         <Route path="/profile" element={<Profile />} />
         <Route path="/create-activity" element={<CreateActivity />} />
         <Route path="/create-club" element={<CreateClub />} />
-        <Route path="/chat/:groupType/:groupId" element={<GroupChat />} />
+        <Route path="/chat/:conversationId" element={<GroupChat />} />
       </Route>
 
       <Route path="*" element={<PageNotFound />} />

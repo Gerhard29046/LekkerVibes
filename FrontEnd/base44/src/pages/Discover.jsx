@@ -1,52 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { Search, MapPin, SlidersHorizontal, X, ChevronDown } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { eventsApi, eventCategoriesApi } from '@/api/eventsApi';
 import { useLocation } from '@/hooks/useLocation.jsx';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 import ActivityCard from '@/components/landing/ActivityCard';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const CATEGORIES = [
-  'All', 'Running', 'Hiking', 'Surfing', 'Cycling', 'Yoga & Wellness',
-  'Food & Markets', 'Faith & Community', 'Social & Dining', 'Book Club',
-  'Gaming', 'Art', 'Music', 'Volunteering', 'Outdoor Adventures'
-];
-
 export default function Discover() {
   const [activities, setActivities] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('All');
+  const [categoryId, setCategoryId] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   const [beginnerOnly, setBeginnerOnly] = useState(false);
   const [freeOnly, setFreeOnly] = useState(false);
   const [aloneOnly, setAloneOnly] = useState(false);
-  const { selectedCity, setSelectedCity, cities } = useLocation();
+  const { selectedCity } = useLocation();
+
+  useEffect(() => {
+    eventCategoriesApi.list().then(setCategories).catch(() => setCategories([]));
+  }, []);
 
   useEffect(() => {
     setLoading(true);
-    const query = { status: 'published', city: selectedCity };
-    if (category !== 'All') query.category = category;
-    if (beginnerOnly) query.is_beginner_friendly = true;
-    if (freeOnly) query.is_free = true;
-    if (aloneOnly) query.is_attend_alone_friendly = true;
+    const params = { search: search || undefined };
+    if (categoryId) params.category_id = categoryId;
+    if (beginnerOnly) params.is_beginner_friendly = 1;
+    if (freeOnly) params.is_free = 1;
+    if (aloneOnly) params.is_attend_alone_friendly = 1;
 
-    base44.entities.Activity.filter(query, '-trending_score', 50)
-      .then(results => {
-        if (search) {
-          const q = search.toLowerCase();
-          results = results.filter(a =>
-            a.title?.toLowerCase().includes(q) ||
-            a.description?.toLowerCase().includes(q) ||
-            a.category?.toLowerCase().includes(q)
-          );
-        }
-        setActivities(results);
-      })
+    eventsApi.list(params)
+      .then(result => setActivities(result.data))
       .catch(() => setActivities([]))
       .finally(() => setLoading(false));
-  }, [selectedCity, category, beginnerOnly, freeOnly, aloneOnly, search]);
+  }, [categoryId, beginnerOnly, freeOnly, aloneOnly, search]);
 
   return (
     <div className="min-h-screen bg-cream">
@@ -119,17 +108,27 @@ export default function Discover() {
 
         {/* Category tabs */}
         <div className="flex gap-2 overflow-x-auto pb-4 mb-8 scrollbar-hide">
-          {CATEGORIES.map(cat => (
+          <button
+            onClick={() => setCategoryId(null)}
+            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+              categoryId === null
+                ? 'bg-ocean text-white'
+                : 'bg-white text-charcoal/60 hover:text-charcoal border border-sand'
+            }`}
+          >
+            All
+          </button>
+          {categories.map(cat => (
             <button
-              key={cat}
-              onClick={() => setCategory(cat)}
+              key={cat.id}
+              onClick={() => setCategoryId(cat.id)}
               className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                category === cat
+                categoryId === cat.id
                   ? 'bg-ocean text-white'
                   : 'bg-white text-charcoal/60 hover:text-charcoal border border-sand'
               }`}
             >
-              {cat}
+              {cat.name}
             </button>
           ))}
         </div>

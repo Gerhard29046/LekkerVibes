@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Users, BadgeCheck, ArrowRight, MapPin } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { Users, ArrowRight, MapPin } from 'lucide-react';
+import { communitiesApi } from '@/api/communitiesApi';
 import { useLocation } from '@/hooks/useLocation.jsx';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
@@ -12,8 +12,8 @@ export default function ClubsSection() {
 
   useEffect(() => {
     setLoading(true);
-    base44.entities.Club.filter({ city: selectedCity, status: 'active' }, '-trending_score', 4)
-      .then(setClubs)
+    communitiesApi.list({ per_page: 4 })
+      .then(result => setClubs(result.data))
       .catch(() => setClubs([]))
       .finally(() => setLoading(false));
   }, [selectedCity]);
@@ -75,7 +75,7 @@ export default function ClubsSection() {
                 <div className="bg-white rounded-2xl overflow-hidden border border-sand/80 card-hover shadow-sm">
                   <div className="relative h-32 overflow-hidden">
                     <img
-                      src={club.cover_image || 'https://images.unsplash.com/photo-1571008887538-b36bb32f4571?w=600'}
+                      src={club.cover_url || 'https://images.unsplash.com/photo-1571008887538-b36bb32f4571?w=600'}
                       alt={club.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
@@ -86,13 +86,12 @@ export default function ClubsSection() {
                       <h3 className="font-heading font-semibold text-charcoal text-base line-clamp-1 flex-1 group-hover:text-ocean transition-colors">
                         {club.name}
                       </h3>
-                      {club.is_verified && <BadgeCheck className="w-4 h-4 text-teal shrink-0 mt-0.5" />}
                     </div>
                     <p className="text-xs text-charcoal/60 line-clamp-2 mb-3">{club.description}</p>
                     <div className="flex items-center justify-between text-xs text-charcoal/50">
                       <span className="flex items-center gap-1">
                         <MapPin className="w-3 h-3" />
-                        {club.neighbourhood || club.city}
+                        {club.location?.name}
                       </span>
                       <span className="flex items-center gap-1">
                         <Users className="w-3 h-3" />

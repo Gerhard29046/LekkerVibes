@@ -41,6 +41,10 @@ class CommunityResource extends JsonResource
                     'status' => $this->members->first()->status,
                 ] : null
             ),
+            'welcome_conversation_id' => $this->whenLoaded(
+                'conversations',
+                fn () => $this->conversations->firstWhere('type', 'welcome_group')?->id
+            ),
         ];
     }
 }

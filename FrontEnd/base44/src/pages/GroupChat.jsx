@@ -1,57 +1,51 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { base44 } from '@/api/base44Client';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
-import { ArrowLeft, Send, Pin, Flag, Trash2, MessageCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { messagesApi } from '@/api/messagesApi';
+import { useAuth } from '@/lib/AuthContext';
+import { ArrowLeft, Send, Trash2, MessageCircle } from 'lucide-react';
 import moment from 'moment';
 
+// Polling-based live updates for v1 — see documentation/DECISIONS.md for
+// why (no WebSocket transport yet; Laravel Reverb is the documented
+// upgrade path).
+const POLL_INTERVAL_MS = 4000;
+
 export default function GroupChat() {
-  const { groupType, groupId } = useParams();
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
+  const { conversationId } = useParams();
+  const { user } = useAuth();
+  const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [group, setGroup] = useState(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const bottomRef = useRef(null);
+  const lastIdRef = useRef(0);
+
+  const fetchNewMessages = useCallback(async () => {
+    const newMsgs = await messagesApi.list(conversationId, { after_id: lastIdRef.current || undefined });
+    if (newMsgs.length > 0) {
+      lastIdRef.current = newMsgs[newMsgs.length - 1].id;
+      setMessages(m => [...m, ...newMsgs]);
+    }
+  }, [conversationId]);
 
   useEffect(() => {
-    const load = async () => {
-      const me = await base44.auth.me();
-      setUser(me);
-      const profiles = await base44.entities.UserProfile.filter({ user_id: me.id });
-      setProfile(profiles[0] || null);
-
-      // Load group info
-      if (groupType === 'club') {
-        const c = await base44.entities.Club.get(groupId).catch(() => null);
-        setGroup(c);
-      } else {
-        const a = await base44.entities.Activity.get(groupId).catch(() => null);
-        setGroup(a);
-      }
-
-      // Load messages
-      const msgs = await base44.entities.GroupMessage.filter(
-        { group_type: groupType, group_id: groupId, is_deleted: false },
-        'created_date', 50
-      );
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      messagesApi.conversation(conversationId).catch(() => null),
+      messagesApi.list(conversationId, {}),
+    ]).then(([convo, msgs]) => {
+      if (cancelled) return;
+      setConversation(convo);
       setMessages(msgs);
-      setLoading(false);
-    };
-    load();
-  }, [groupType, groupId]);
+      lastIdRef.current = msgs.length > 0 ? msgs[msgs.length - 1].id : 0;
+      messagesApi.markConversationRead(conversationId).catch(() => {});
+    }).finally(() => !cancelled && setLoading(false));
 
-  // Subscribe to real-time updates
-  useEffect(() => {
-    const unsub = base44.entities.GroupMessage.subscribe((event) => {
-      if (event.data?.group_id === groupId && event.data?.group_type === groupType && !event.data?.is_deleted) {
-        if (event.type === 'create') setMessages(m => [...m, event.data]);
-        if (event.type === 'delete') setMessages(m => m.filter(msg => msg.id !== event.id));
-      }
-    });
-    return unsub;
-  }, [groupId, groupType]);
+    const interval = setInterval(fetchNewMessages, POLL_INTERVAL_MS);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [conversationId, fetchNewMessages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -60,18 +54,14 @@ export default function GroupChat() {
   const sendMessage = async () => {
     if (!text.trim() || sending) return;
     setSending(true);
-    const msg = await base44.entities.GroupMessage.create({
-      group_type: groupType,
-      group_id: groupId,
-      user_id: user.id,
-      user_name: profile?.display_name || user?.full_name || 'Member',
-      user_photo: profile?.profile_photo || '',
-      content: text.trim(),
-      message_type: 'text',
-    });
-    setMessages(m => [...m, msg]);
-    setText('');
-    setSending(false);
+    try {
+      const msg = await messagesApi.send(conversationId, text.trim());
+      setMessages(m => [...m, msg]);
+      lastIdRef.current = msg.id;
+      setText('');
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -82,11 +72,14 @@ export default function GroupChat() {
   };
 
   const deleteMessage = async (msgId) => {
-    await base44.entities.GroupMessage.update(msgId, { is_deleted: true });
-    setMessages(m => m.filter(msg => msg.id !== msgId));
+    await messagesApi.remove(msgId);
+    setMessages(m => m.map(msg => (msg.id === msgId ? { ...msg, is_deleted: true, body: null } : msg)));
   };
 
-  const backLink = groupType === 'club' ? `/club/${groupId}` : `/activity/${groupId}`;
+  const backLink = conversation?.community ? `/club/${conversation.community.id}`
+    : conversation?.event ? `/activity/${conversation.event.id}`
+      : '/';
+  const groupName = conversation?.community?.name || conversation?.event?.title || conversation?.title || 'Group Chat';
 
   return (
     <div className="flex flex-col h-screen bg-cream">
@@ -99,8 +92,8 @@ export default function GroupChat() {
           <MessageCircle className="w-4 h-4 text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-heading font-semibold text-charcoal text-sm truncate">{group?.name || group?.title || 'Group Chat'}</p>
-          <p className="text-xs text-charcoal/50 capitalize">{groupType} chat · {messages.length} messages</p>
+          <p className="font-heading font-semibold text-charcoal text-sm truncate">{groupName}</p>
+          <p className="text-xs text-charcoal/50">{messages.length} messages</p>
         </div>
         <div className="text-xs text-charcoal/40 hidden sm:block">No private messages · Group only</div>
       </div>
@@ -125,36 +118,29 @@ export default function GroupChat() {
           </div>
         )}
         {messages.map((msg) => {
-          const isOwn = msg.user_id === user?.id;
+          const isOwn = msg.sender?.id === user?.id;
           return (
             <div key={msg.id} className={`flex gap-2.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
               {/* Avatar */}
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-ocean to-teal flex items-center justify-center shrink-0 overflow-hidden">
-                {msg.user_photo
-                  ? <img src={msg.user_photo} alt={msg.user_name} className="w-full h-full object-cover" />
-                  : <span className="text-white text-xs font-bold">{(msg.user_name || 'M')[0].toUpperCase()}</span>
-                }
+                <span className="text-white text-xs font-bold">{(msg.sender?.name || (msg.is_system ? 'LV' : 'M'))[0].toUpperCase()}</span>
               </div>
               <div className={`max-w-xs sm:max-w-sm lg:max-w-md group ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
-                {!isOwn && <p className="text-xs text-charcoal/50 font-medium mb-1 px-1">{msg.user_name}</p>}
-                {msg.message_type === 'announcement' && (
-                  <div className="flex items-center gap-1 mb-1">
-                    <Pin className="w-3 h-3 text-coral" />
-                    <span className="text-xs text-coral font-semibold">Announcement</span>
-                  </div>
-                )}
+                {!isOwn && msg.sender && <p className="text-xs text-charcoal/50 font-medium mb-1 px-1">{msg.sender.name}</p>}
                 <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-                  isOwn
-                    ? 'bg-gradient-to-r from-ocean to-teal text-white rounded-tr-sm'
-                    : msg.message_type === 'announcement'
-                      ? 'bg-coral/10 border border-coral/20 text-charcoal rounded-tl-sm'
-                      : 'bg-white border border-sand text-charcoal rounded-tl-sm shadow-sm'
+                  msg.is_deleted
+                    ? 'bg-sand/60 text-charcoal/40 italic rounded-tl-sm'
+                    : isOwn
+                      ? 'bg-gradient-to-r from-ocean to-teal text-white rounded-tr-sm'
+                      : msg.is_system
+                        ? 'bg-coral/10 border border-coral/20 text-charcoal rounded-tl-sm'
+                        : 'bg-white border border-sand text-charcoal rounded-tl-sm shadow-sm'
                 }`}>
-                  {msg.content}
+                  {msg.is_deleted ? 'This message was deleted' : msg.body}
                 </div>
                 <div className={`flex items-center gap-2 mt-1 ${isOwn ? 'flex-row-reverse' : ''}`}>
-                  <p className="text-[10px] text-charcoal/40 px-1">{moment(msg.created_date).fromNow()}</p>
-                  {isOwn && (
+                  <p className="text-[10px] text-charcoal/40 px-1">{moment(msg.created_at).fromNow()}</p>
+                  {isOwn && !msg.is_deleted && (
                     <button onClick={() => deleteMessage(msg.id)}
                       className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-sand rounded">
                       <Trash2 className="w-3 h-3 text-charcoal/40" />

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Users, BadgeCheck, MapPin, ArrowRight } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { Search, Users, MapPin } from 'lucide-react';
+import { communitiesApi } from '@/api/communitiesApi';
 import { useLocation } from '@/hooks/useLocation.jsx';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
@@ -15,14 +15,8 @@ export default function Clubs() {
 
   useEffect(() => {
     setLoading(true);
-    base44.entities.Club.filter({ city: selectedCity, status: 'active' }, '-trending_score', 50)
-      .then(results => {
-        if (search) {
-          const q = search.toLowerCase();
-          results = results.filter(c => c.name?.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q));
-        }
-        setClubs(results);
-      })
+    communitiesApi.list({ search: search || undefined, per_page: 50 })
+      .then(result => setClubs(result.data))
       .catch(() => setClubs([]))
       .finally(() => setLoading(false));
   }, [selectedCity, search]);
@@ -83,30 +77,24 @@ export default function Clubs() {
                   <div className="bg-white rounded-2xl overflow-hidden border border-sand card-hover shadow-sm">
                     <div className="relative h-36 overflow-hidden">
                       <img
-                        src={club.cover_image || 'https://images.unsplash.com/photo-1571008887538-b36bb32f4571?w=600'}
+                        src={club.cover_url || 'https://images.unsplash.com/photo-1571008887538-b36bb32f4571?w=600'}
                         alt={club.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                      {club.categories?.length > 0 && (
-                        <span className="absolute bottom-3 left-3 px-2.5 py-1 rounded-full glass-dark text-white text-[11px] font-medium">
-                          {club.categories[0]}
-                        </span>
-                      )}
                     </div>
                     <div className="p-5">
                       <div className="flex items-start justify-between mb-2">
                         <h3 className="font-heading font-semibold text-charcoal text-lg group-hover:text-ocean transition-colors">
                           {club.name}
                         </h3>
-                        {club.is_verified && <BadgeCheck className="w-5 h-5 text-teal shrink-0" />}
                       </div>
                       <p className="text-sm text-charcoal/60 line-clamp-2 mb-4">{club.description}</p>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 text-xs text-charcoal/50">
                           <span className="flex items-center gap-1">
                             <MapPin className="w-3.5 h-3.5" />
-                            {club.neighbourhood || club.city}
+                            {club.location?.name}
                           </span>
                           <span className="flex items-center gap-1">
                             <Users className="w-3.5 h-3.5" />
@@ -114,7 +102,7 @@ export default function Clubs() {
                           </span>
                         </div>
                         <span className="px-3 py-1 rounded-full bg-sand text-charcoal/60 text-[11px] font-medium capitalize">
-                          {club.membership_type}
+                          {club.join_policy}
                         </span>
                       </div>
                     </div>

@@ -1,34 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { communitiesApi } from '@/api/communitiesApi';
+import { eventsApi } from '@/api/eventsApi';
+import { reportsApi } from '@/api/reportsApi';
+import { useAuth } from '@/lib/AuthContext';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 import ActivityCard from '@/components/landing/ActivityCard';
 import {
-  ArrowLeft, BadgeCheck, MapPin, Users, Calendar, MessageCircle,
-  Shield, Share2, Flag
+  ArrowLeft, MapPin, Users, Calendar, MessageCircle,
+  Shield, Share2, Flag, Loader2
 } from 'lucide-react';
 
 export default function ClubDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [club, setClub] = useState(null);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [joinLoading, setJoinLoading] = useState(false);
+
+  const load = () => {
+    communitiesApi.get(id)
+      .then(clubData => {
+        setClub(clubData);
+        return eventsApi.list({ community_id: id, per_page: 10 });
+      })
+      .then(result => setActivities(result?.data || []))
+      .catch(() => setClub(null))
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
-    Promise.all([
-      base44.entities.Club.get(id),
-      base44.entities.Activity.filter({ club_name: '' }, '-date', 10).catch(() => [])
-    ]).then(([clubData, acts]) => {
-      setClub(clubData);
-      // Filter activities by club name
-      if (clubData) {
-        base44.entities.Activity.filter({ club_name: clubData.name, status: 'published' }, '-date', 10)
-          .then(setActivities)
-          .catch(() => setActivities([]));
-      }
-    }).catch(() => setClub(null))
-      .finally(() => setLoading(false));
+    setLoading(true);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   if (loading) {
@@ -54,6 +61,35 @@ export default function ClubDetail() {
     );
   }
 
+  const handleJoin = async () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    setJoinLoading(true);
+    try {
+      await communitiesApi.join(club.id);
+      load();
+    } finally {
+      setJoinLoading(false);
+    }
+  };
+
+  const handleReport = async () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    await reportsApi.create({ reportableType: 'community', reportableId: club.id, reason: 'other' });
+  };
+
+  const membershipStatus = club.my_membership?.status;
+  const joinLabel = membershipStatus === 'active'
+    ? "You're a member"
+    : club.join_policy === 'request'
+      ? 'Request to Join'
+      : 'Join Community';
+
   return (
     <div className="min-h-screen bg-cream">
       <Navbar />
@@ -61,7 +97,7 @@ export default function ClubDetail() {
       {/* Cover */}
       <div className="relative h-[35vh] sm:h-[45vh] overflow-hidden">
         <img
-          src={club.cover_image || 'https://images.unsplash.com/photo-1571008887538-b36bb32f4571?w=1600'}
+          src={club.cover_url || 'https://images.unsplash.com/photo-1571008887538-b36bb32f4571?w=1600'}
           alt={club.name}
           className="w-full h-full object-cover"
         />
@@ -77,16 +113,8 @@ export default function ClubDetail() {
         </div>
 
         <div className="absolute bottom-6 left-4 sm:left-6 right-4 sm:right-6">
-          <div className="flex items-center gap-2 mb-2">
-            {club.categories?.map(cat => (
-              <span key={cat} className="px-3 py-1 rounded-full bg-white/20 backdrop-blur text-white text-xs font-medium">
-                {cat}
-              </span>
-            ))}
-          </div>
           <h1 className="font-heading text-3xl sm:text-4xl font-bold text-white flex items-center gap-3">
             {club.name}
-            {club.is_verified && <BadgeCheck className="w-6 h-6 text-sky" />}
           </h1>
         </div>
       </div>
@@ -101,10 +129,12 @@ export default function ClubDetail() {
                 <Users className="w-4 h-4 text-ocean" />
                 <span className="text-sm font-semibold text-charcoal">{club.member_count} members</span>
               </div>
-              <div className="bg-white rounded-xl px-5 py-3 border border-sand flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-coral" />
-                <span className="text-sm font-semibold text-charcoal">{club.neighbourhood || club.city}</span>
-              </div>
+              {club.location && (
+                <div className="bg-white rounded-xl px-5 py-3 border border-sand flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-coral" />
+                  <span className="text-sm font-semibold text-charcoal">{club.location.name}</span>
+                </div>
+              )}
             </div>
 
             {/* About */}
@@ -114,13 +144,20 @@ export default function ClubDetail() {
             </div>
 
             {/* Guidelines */}
-            {club.guidelines && (
+            {club.rules?.length > 0 && (
               <div className="bg-white rounded-2xl p-6 border border-sand">
                 <h3 className="font-heading text-base font-semibold text-charcoal mb-3 flex items-center gap-2">
                   <Shield className="w-4 h-4 text-ocean" />
                   Community Guidelines
                 </h3>
-                <p className="text-sm text-charcoal/70 leading-relaxed">{club.guidelines}</p>
+                <ol className="space-y-2">
+                  {club.rules.map(rule => (
+                    <li key={rule.id} className="text-sm text-charcoal/70 leading-relaxed">
+                      <span className="font-medium text-charcoal">{rule.title}</span>
+                      {rule.description && <span> — {rule.description}</span>}
+                    </li>
+                  ))}
+                </ol>
               </div>
             )}
 
@@ -143,18 +180,24 @@ export default function ClubDetail() {
           {/* Sidebar */}
           <div className="space-y-5">
             <div className="bg-white rounded-2xl p-6 border border-sand sticky top-24">
-              <button className="w-full py-3 bg-gradient-to-r from-ocean to-teal text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-ocean/20 transition-all mb-3 text-sm">
-                Join Community
+              <button
+                onClick={handleJoin}
+                disabled={joinLoading || membershipStatus === 'active'}
+                className="w-full py-3 bg-gradient-to-r from-ocean to-teal text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-ocean/20 transition-all mb-3 text-sm disabled:opacity-60"
+              >
+                {joinLoading ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : joinLabel}
               </button>
-              <Link to={`/chat/club/${club.id}`} className="w-full py-3 bg-ocean/10 text-ocean font-semibold rounded-xl hover:bg-ocean/20 transition-colors text-sm mb-4 flex items-center justify-center gap-2">
-                <MessageCircle className="w-4 h-4" />
-                Group Chat
-              </Link>
+              {club.welcome_conversation_id && membershipStatus === 'active' && (
+                <Link to={`/chat/${club.welcome_conversation_id}`} className="w-full py-3 bg-ocean/10 text-ocean font-semibold rounded-xl hover:bg-ocean/20 transition-colors text-sm mb-4 flex items-center justify-center gap-2">
+                  <MessageCircle className="w-4 h-4" />
+                  Group Chat
+                </Link>
+              )}
               <div className="flex gap-2">
                 <button className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-sand rounded-xl text-xs font-medium text-charcoal">
                   <Share2 className="w-3.5 h-3.5" /> Share
                 </button>
-                <button className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-sand rounded-xl text-xs font-medium text-charcoal">
+                <button onClick={handleReport} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-sand rounded-xl text-xs font-medium text-charcoal">
                   <Flag className="w-3.5 h-3.5" /> Report
                 </button>
               </div>
@@ -165,11 +208,11 @@ export default function ClubDetail() {
               <h3 className="font-heading text-sm font-semibold text-charcoal mb-3">Organised by</h3>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-ocean to-teal flex items-center justify-center text-white font-bold text-sm">
-                  {(club.organiser_name || 'O')[0]}
+                  {(club.creator?.name || 'O')[0]}
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-charcoal">{club.organiser_name}</p>
-                  <p className="text-xs text-charcoal/50 capitalize">{club.membership_type} membership</p>
+                  <p className="text-sm font-medium text-charcoal">{club.creator?.name}</p>
+                  <p className="text-xs text-charcoal/50 capitalize">{club.join_policy} membership</p>
                 </div>
               </div>
             </div>
