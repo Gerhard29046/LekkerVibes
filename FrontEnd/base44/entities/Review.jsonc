@@ -1,0 +1,54 @@
+{
+  "name": "Review",
+  "type": "object",
+  "properties": {
+    "activity_id": {
+      "type": "string"
+    },
+    "club_id": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string"
+    },
+    "user_name": {
+      "type": "string"
+    },
+    "welcoming": {
+      "type": "number"
+    },
+    "accuracy": {
+      "type": "number"
+    },
+    "organisation": {
+      "type": "number"
+    },
+    "safety": {
+      "type": "number"
+    },
+    "beginner_friendliness": {
+      "type": "number"
+    },
+    "value": {
+      "type": "number"
+    },
+    "venue_quality": {
+      "type": "number"
+    },
+    "comment": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "published",
+        "pending",
+        "removed"
+      ],
+      "default": "published"
+    }
+  },
+  "required": [
+    "user_id"
+  ]
+}

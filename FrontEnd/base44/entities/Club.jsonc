@@ -1,0 +1,90 @@
+{
+  "name": "Club",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "slug": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "logo": {
+      "type": "string"
+    },
+    "cover_image": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "neighbourhood": {
+      "type": "string"
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "membership_type": {
+      "type": "string",
+      "enum": [
+        "open",
+        "approval",
+        "invite_only",
+        "paid"
+      ],
+      "default": "open"
+    },
+    "is_free": {
+      "type": "boolean",
+      "default": true
+    },
+    "membership_fee": {
+      "type": "number"
+    },
+    "member_count": {
+      "type": "number",
+      "default": 0
+    },
+    "is_verified": {
+      "type": "boolean",
+      "default": false
+    },
+    "guidelines": {
+      "type": "string"
+    },
+    "organiser_id": {
+      "type": "string"
+    },
+    "organiser_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive",
+        "suspended"
+      ],
+      "default": "active"
+    },
+    "trending_score": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "name",
+    "city"
+  ]
+}

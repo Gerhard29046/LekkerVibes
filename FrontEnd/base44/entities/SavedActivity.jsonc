@@ -1,0 +1,16 @@
+{
+  "name": "SavedActivity",
+  "type": "object",
+  "properties": {
+    "activity_id": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "activity_id",
+    "user_id"
+  ]
+}

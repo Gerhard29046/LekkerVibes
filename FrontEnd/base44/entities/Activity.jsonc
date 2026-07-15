@@ -1,0 +1,191 @@
+{
+  "name": "Activity",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "slug": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "cover_image": {
+      "type": "string"
+    },
+    "gallery": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "category": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "city": {
+      "type": "string"
+    },
+    "neighbourhood": {
+      "type": "string"
+    },
+    "venue_name": {
+      "type": "string"
+    },
+    "venue_address": {
+      "type": "string"
+    },
+    "latitude": {
+      "type": "number"
+    },
+    "longitude": {
+      "type": "number"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "start_time": {
+      "type": "string"
+    },
+    "end_time": {
+      "type": "string"
+    },
+    "is_recurring": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurrence_pattern": {
+      "type": "string",
+      "enum": [
+        "daily",
+        "weekly",
+        "biweekly",
+        "monthly",
+        "custom"
+      ]
+    },
+    "price": {
+      "type": "number",
+      "default": 0
+    },
+    "is_free": {
+      "type": "boolean",
+      "default": true
+    },
+    "capacity": {
+      "type": "number"
+    },
+    "spots_remaining": {
+      "type": "number"
+    },
+    "attendee_count": {
+      "type": "number",
+      "default": 0
+    },
+    "interested_count": {
+      "type": "number",
+      "default": 0
+    },
+    "is_beginner_friendly": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_family_friendly": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_attend_alone_friendly": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_alcohol_free": {
+      "type": "boolean",
+      "default": false
+    },
+    "age_guidance": {
+      "type": "string"
+    },
+    "experience_level": {
+      "type": "string",
+      "enum": [
+        "beginner",
+        "intermediate",
+        "advanced",
+        "all_levels"
+      ],
+      "default": "all_levels"
+    },
+    "intensity": {
+      "type": "string",
+      "enum": [
+        "low",
+        "moderate",
+        "high"
+      ],
+      "default": "moderate"
+    },
+    "what_to_bring": {
+      "type": "string"
+    },
+    "meeting_instructions": {
+      "type": "string"
+    },
+    "parking_info": {
+      "type": "string"
+    },
+    "accessibility_info": {
+      "type": "string"
+    },
+    "cancellation_policy": {
+      "type": "string"
+    },
+    "club_id": {
+      "type": "string"
+    },
+    "club_name": {
+      "type": "string"
+    },
+    "organiser_id": {
+      "type": "string"
+    },
+    "organiser_name": {
+      "type": "string"
+    },
+    "is_verified": {
+      "type": "boolean",
+      "default": false
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "published",
+        "cancelled",
+        "expired"
+      ],
+      "default": "published"
+    },
+    "trending_score": {
+      "type": "number",
+      "default": 0
+    },
+    "welcome_labels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "title",
+    "city",
+    "date"
+  ]
+}

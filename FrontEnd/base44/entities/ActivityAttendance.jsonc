@@ -1,0 +1,26 @@
+{
+  "name": "ActivityAttendance",
+  "type": "object",
+  "properties": {
+    "activity_id": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "interested",
+        "going",
+        "attended",
+        "cancelled"
+      ],
+      "default": "interested"
+    }
+  },
+  "required": [
+    "activity_id",
+    "user_id"
+  ]
+}
