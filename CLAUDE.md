@@ -6,8 +6,9 @@ site, nightclub-only platform, or generic ticket marketplace.
 
 This is a **new build from scratch**. The React code under
 `FrontEnd/base44/` originated as a Base44 (hosted low-code platform) export
-and is used purely as a visual/component reference — target is zero runtime
-Base44 dependency. See `documentation/BASE44_REFERENCE_MAP.md`.
+and was used as a visual/component reference — **zero runtime Base44
+dependency achieved**: `@base44/sdk` and `@base44/vite-plugin` are fully
+removed. See `documentation/BASE44_REFERENCE_MAP.md`.
 
 ## Architecture
 
@@ -56,8 +57,15 @@ cd FrontEnd/base44; npm run dev
   (`#[Fillable]`, `#[Hidden]` — see `app/Models/User.php`), Form Requests
   for validation, API Resources for response shaping, Policies for
   authorization. No business logic in controllers beyond orchestration.
-- Frontend: `@/` alias → `FrontEnd/base44/src/*`. TanStack Query for all
-  server state. One `src/api/<domain>Api.js` module per resource domain.
+- Frontend: `@/` alias → `FrontEnd/base44/src/*` (configured directly in
+  `vite.config.js` `resolve.alias` — not provided by any plugin). One
+  `src/api/<domain>Api.js` module per resource domain, all built on the
+  shared `apiClient.js` fetch wrapper. `@tanstack/react-query` is installed
+  and a `QueryClientProvider` wraps the app, but pages currently fetch via
+  plain `useState`/`useEffect` calling the `*Api.js` modules directly, not
+  `useQuery`/`useMutation` — migrating pages to TanStack Query hooks (for
+  caching, refetch-on-focus, mutation state) is a worthwhile follow-up, not
+  done yet.
 - Auth: Sanctum **token-based** (Bearer header), not cookie/SPA mode — see
   `documentation/DECISIONS.md`.
 - Messaging is group/community-based only — never build unrestricted 1:1
@@ -73,18 +81,30 @@ must respect `prefers-reduced-motion` and stay performant.
 
 ## Current milestone
 
-Foundation phase: repo restructured, DB schema live, Sanctum installed,
-Eloquent models in progress. No feature is yet connected end-to-end between
-frontend and backend — see `documentation/FEATURE_STATUS.md` for the
-authoritative per-feature status. Do not assume anything not listed there as
-✅ actually works.
+Core platform is live end-to-end: full Laravel API (auth, profile,
+locations, interests, events/activities, communities/memberships,
+messaging, uploads, reports, blocks, saved, notifications), and the
+existing frontend pages (public site + the Base44-era signed-in pages) are
+all wired to it — **zero runtime Base44 dependency remains** (`@base44/sdk`
+and `@base44/vite-plugin` removed from `package.json`). See
+`documentation/FEATURE_STATUS.md` for the authoritative per-feature status —
+do not assume anything not listed there as ✅ actually works. Next up: the
+`/app/*` signed-in app shell from the product brief (current signed-in
+pages live at top-level routes, not under a bottom-nav `/app` shell),
+automated tests (everything so far was verified via live manual testing
+against the dev servers), and TanStack Query adoption.
 
 ## Known limitations
 
-- Frontend still runs entirely on the Base44 SDK; migration is file-by-file
-  per `documentation/BASE44_REFERENCE_MAP.md`.
-- No real-time transport yet (polling planned for v1 messaging).
-- No file storage/CDN configured yet.
+- No real-time transport yet (polling planned for v1 messaging, 4s interval
+  in `GroupChat.jsx`).
+- No automated test suite (backend Pest/PHPUnit or frontend Vitest/
+  Playwright) — see `documentation/FEATURE_STATUS.md` for what was
+  live-tested instead.
+- Blocking is recorded but not enforced; notifications API exists but
+  nothing dispatches a notification yet; no recurring-event occurrence
+  generation; no venue-creation flow. Full list in
+  `documentation/FEATURE_STATUS.md`.
 
 ## File deletion policy
 
