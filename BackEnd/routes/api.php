@@ -2,12 +2,14 @@
 
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\CommunityController;
+use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\EventAttendanceController;
 use App\Http\Controllers\Api\EventCategoryController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\InterestController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\MembershipController;
+use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\ProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -88,4 +90,16 @@ Route::prefix('communities')->group(function () {
         Route::post('/{community}/membership-requests/{membershipRequest}/approve', [MembershipController::class, 'approveMembershipRequest']);
         Route::post('/{community}/membership-requests/{membershipRequest}/reject', [MembershipController::class, 'rejectMembershipRequest']);
     });
+});
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('conversations')->group(function () {
+        Route::get('/', [ConversationController::class, 'index']);
+        Route::get('/{conversation}', [ConversationController::class, 'show']);
+        Route::post('/{conversation}/read', [ConversationController::class, 'markRead']);
+        Route::get('/{conversation}/messages', [MessageController::class, 'index']);
+        Route::post('/{conversation}/messages', [MessageController::class, 'store']);
+    });
+
+    Route::delete('/messages/{message}', [MessageController::class, 'destroy']);
 });
