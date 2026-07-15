@@ -4,6 +4,18 @@ Running log of professional decisions made while building LekkerVibes from
 scratch, in case a future session (human or agent) needs to know *why*
 something is the way it is. Newest entries at the top.
 
+## 2026-07-15 — `communities.member_count` is maintained by the API layer, not the database
+
+It's a denormalized counter (avoids a `COUNT(*)` on `community_members` on
+every community list render). Nothing enforces it automatically — no DB
+trigger, no model observer yet. **Whoever implements the memberships API
+(join/leave/approve/reject) must increment/decrement it there.**
+`DemoDataSeeder` recomputes it manually after inserting seed membership rows
+since it bypasses that API layer. If a model-level solution (an `Eloquent`
+observer on `CommunityMember` create/update/delete) turns out cleaner once
+the memberships API exists, switch to that instead — just don't leave two
+mechanisms fighting each other.
+
 ## 2026-07-15 — Repository restructure: consolidate frontend into `FrontEnd/base44/`
 
 The repo arrived with the Base44 export split across two locations: config/
