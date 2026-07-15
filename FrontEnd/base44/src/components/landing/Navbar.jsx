@@ -1,20 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MapPin, Menu, X, ChevronDown, User, Plus, ChevronRight } from 'lucide-react';
 import { useLocation } from '@/hooks/useLocation.jsx';
-import { base44 } from '@/api/base44Client';
+import { useAuth } from '@/lib/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [cityOpen, setCityOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
   const { selectedCity, setSelectedCity, cities } = useLocation();
-
-  useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => setUser(null));
-  }, []);
 
   const navLinks = [
     { label: 'Home', to: '/' },
@@ -114,7 +110,7 @@ export default function Navbar() {
                   </AnimatePresence>
                 </div>
                 <Link to="/profile" className="w-9 h-9 rounded-full bg-gradient-to-br from-ocean to-teal flex items-center justify-center text-white font-bold text-sm hover:shadow-md transition-all">
-                  {user.full_name ? user.full_name[0].toUpperCase() : <User className="w-4 h-4" />}
+                  {user.name ? user.name[0].toUpperCase() : <User className="w-4 h-4" />}
                 </Link>
               </>
             ) : (
