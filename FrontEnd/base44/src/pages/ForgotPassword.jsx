@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { authApi } from "@/api/authApi";
+import { sendPasswordResetEmail } from "firebase/auth";
+import { auth } from "@/lib/firebaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,9 +17,9 @@ export default function ForgotPassword() {
     e.preventDefault();
     setLoading(true);
     try {
-      await authApi.forgotPassword(email);
+      await sendPasswordResetEmail(auth, email);
     } catch {
-      // Always show success regardless
+      // Always show success regardless — don't reveal whether the email is registered
     } finally {
       setLoading(false);
       setSent(true);

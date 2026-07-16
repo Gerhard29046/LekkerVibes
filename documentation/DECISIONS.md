@@ -4,6 +4,71 @@ Running log of professional decisions made while building LekkerVibes from
 scratch, in case a future session (human or agent) needs to know *why*
 something is the way it is. Newest entries at the top.
 
+## 2026-07-16 — First live deployment: Laravel/MySQL replaced by Firebase + a Cloudflare Worker
+
+Gerhard doesn't yet own `lekkervibes.co.za`, and the Laravel/MySQL backend
+had never been deployed anywhere (local-only, `127.0.0.1:8000`). Rather than
+wait on a domain purchase, the first live deployment ships on Cloudflare's
+free generated domains, with the backend split across two services instead
+of Laravel:
+
+- **Firebase client SDK**, called directly by the frontend for
+  authentication, Firestore-backed real-time group chat, and FCM push-token
+  registration. No server code of ours sits in this path — Firestore
+  Security Rules (`Firebase/firestore.rules`) are the authorization layer.
+- **Cloudflare Worker `lekkervibes-api`** (new `Worker/` directory), for the
+  handful of operations that can't be safely done from the client: admin
+  role changes, moderator message deletion, and sending FCM pushes. It's a
+  Hono app that verifies Firebase ID tokens with `jose` against Google's
+  JWKS (Workers can't run Node's `firebase-admin` SDK — no Node APIs), then
+  calls Firestore/Identity Toolkit/FCM as plain REST, authenticated via a
+  service-account JWT-bearer OAuth2 exchange (also `jose`, Web Crypto only).
+
+Scope for this pass is deliberately narrow: only auth, chat, and FCM
+registration move to Firebase. Events, communities, locations, interests,
+uploads, reports, blocks, saved items, and profile editing are **not**
+ported — they stay on their Laravel-backed pages, which are feature-flagged
+off (`FrontEnd/base44/src/lib/featureFlags.js`) and show a `ComingSoon`
+placeholder in this deployment rather than erroring against a backend that
+isn't running anywhere live. `BackEnd/` is not deleted — it's disconnected
+from the live site, same treatment as old Base44 files get in
+`BASE44_REFERENCE_MAP.md`.
+
+This also **supersedes** the "Dropped Base44-specific auth features with no
+backend equivalent" entry below: Google Sign-In is no longer a placeholder —
+Firebase Authentication made it a few lines of `GoogleAuthProvider` +
+`signInWithPopup`, wired into `Login.jsx`/`Register.jsx` using the
+previously-unused `GoogleIcon.jsx`. It also makes `GroupChat.jsx`'s old
+"Laravel Reverb is the documented upgrade path" comment moot — real-time is
+Firestore's `onSnapshot` listener, no polling, no Reverb.
+
+Firestore security rules deliberately keep the "group/community messaging
+only, never 1:1 DM" constraint: `conversations` documents are
+`memberIds`-gated for both read and message-create, there is no per-user
+direct-message collection, and a user can only soft-delete their *own*
+message — a moderator removing someone else's message must go through the
+Worker's `POST /v1/moderation/messages/:conversationId/:messageId/delete`,
+which authenticates as the service account and bypasses rules by design.
+
+Deployed URLs: `https://lekkervibes.pages.dev` (Cloudflare Pages, direct
+upload of a locally-built `FrontEnd/base44/dist/`, not Git-connected — see
+below) and `https://lekkervibes-api.gerhard-ark-of-war.workers.dev` (Worker,
+`*.workers.dev` subdomain, no custom route configured). Attaching
+`lekkervibes.co.za`/`api.lekkervibes.co.za` later is a config change
+(`wrangler.toml` routes block + `ALLOWED_ORIGINS`/`VITE_API_BASE_URL`), not
+an architecture change.
+
+**Open item, not resolved in this pass:** the Cloudflare Pages project was
+created via `wrangler pages project create` + `wrangler pages deploy`
+(direct upload), *not* connected to the `Gerhard29046/LekkerVibes` GitHub
+repo via Cloudflare's Git integration. That means `VITE_*` env vars are
+baked into the bundle at local build time from `FrontEnd/base44/.env.local`
+(gitignored) — the Production/Preview environment variable fields in the
+Cloudflare Pages dashboard have no effect on what ships **unless and until**
+Gerhard connects the repo to Pages via the dashboard (a browser action),
+at which point those dashboard vars would need to be populated for
+Cloudflare's own build to work.
+
 ## 2026-07-15 — Removed `@base44/sdk` and `@base44/vite-plugin`; `@` alias now explicit
 
 Once every frontend call site was migrated off the Base44 SDK (see

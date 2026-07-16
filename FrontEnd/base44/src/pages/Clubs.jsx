@@ -6,6 +6,8 @@ import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import { FEATURES } from '@/lib/featureFlags';
+import ComingSoon from '@/components/ComingSoon';
 
 export default function Clubs() {
   const [clubs, setClubs] = useState([]);
@@ -14,12 +16,17 @@ export default function Clubs() {
   const { selectedCity } = useLocation();
 
   useEffect(() => {
+    if (!FEATURES.communities) return;
     setLoading(true);
     communitiesApi.list({ search: search || undefined, per_page: 50 })
       .then(result => setClubs(result.data))
       .catch(() => setClubs([]))
       .finally(() => setLoading(false));
   }, [selectedCity, search]);
+
+  if (!FEATURES.communities) {
+    return <ComingSoon feature="Communities" />;
+  }
 
   return (
     <div className="min-h-screen bg-cream">

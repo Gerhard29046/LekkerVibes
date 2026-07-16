@@ -5,6 +5,8 @@ import { uploadsApi } from '@/api/uploadsApi';
 import { useNavigate, Link } from 'react-router-dom';
 import Navbar from '@/components/landing/Navbar';
 import { ArrowLeft, Upload, Loader2, Plus } from 'lucide-react';
+import { FEATURES } from '@/lib/featureFlags';
+import ComingSoon from '@/components/ComingSoon';
 
 export default function CreateActivity() {
   const navigate = useNavigate();
@@ -21,6 +23,7 @@ export default function CreateActivity() {
   });
 
   useEffect(() => {
+    if (!FEATURES.events) return;
     eventCategoriesApi.list().then(setCategories).catch(() => setCategories([]));
     communitiesApi.list({ mine: 1 }).then(result => setClubs(result.data)).catch(() => setClubs([]));
   }, []);
@@ -68,6 +71,10 @@ export default function CreateActivity() {
       setSaving(false);
     }
   };
+
+  if (!FEATURES.events) {
+    return <ComingSoon feature="Creating activities" />;
+  }
 
   return (
     <div className="min-h-screen bg-cream">

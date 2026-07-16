@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Narrow scope this pass: auth-linked profile + FCM tokens, and
+    // membership-gated group chat. Events/communities/etc. are not modeled
+    // here yet — see documentation/FEATURE_STATUS.md.
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == uid;
+      // A user can update their own doc but can't self-promote `role` —
+      // that's Worker-only (see Worker/src/routes/admin.ts).
+      allow update: if request.auth != null && request.auth.uid == uid
+                    && !('role' in request.resource.data.diff(resource.data).affectedKeys());
+      allow delete: if false;
+
+      match /fcmTokens/{tokenId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    match /conversations/{conversationId} {
+      allow read: if request.auth != null && request.auth.uid in resource.data.memberIds;
+      // Conversation creation/membership is admin/Worker-managed only this
+      // pass (no community/event creation flow ships yet).
+      allow write: if false;
+
+      match /messages/{messageId} {
+        allow read: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.memberIds;
+        allow create: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.memberIds
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.isDeleted == false;
+        // A sender may only soft-delete their own message (isDeleted=true,
+        // body cleared) — never hard-delete. A moderator deleting someone
+        // else's message goes through the Worker instead, which
+        // authenticates as the service account and bypasses these rules.
+        allow update: if request.auth != null
+          && resource.data.senderId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isDeleted', 'body'])
+          && request.resource.data.isDeleted == true;
+        allow delete: if false;
+      }
+    }
+  }
+}

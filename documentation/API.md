@@ -1,5 +1,46 @@
 # API
 
+## Cloudflare Worker `lekkervibes-api` — `/v1/*` (live deployment)
+
+Base URL: `https://lekkervibes-api.gerhard-ark-of-war.workers.dev/v1`
+(`VITE_API_BASE_URL` in the frontend). This is the **only** backend the live
+site (`https://lekkervibes.pages.dev`) talks to over HTTP — everything else
+(auth, profile, chat, FCM token registration) goes through the Firebase JS
+SDK directly, not this API. See `ARCHITECTURE.md` and `DECISIONS.md`
+(2026-07-16 entry) for why. Source of truth: `Worker/src/routes/*.ts`.
+
+Auth: `Authorization: Bearer <Firebase ID token>` (from `auth.currentUser.
+getIdToken()`, not a Worker-issued token). CORS allow-list is the
+`ALLOWED_ORIGINS` var in `Worker/wrangler.toml`.
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/health` | — | `{ status, service, timestamp }` |
+| POST | `/admin/bootstrap` | `X-Bootstrap-Secret` header (Worker secret, not a token) | One-shot: promotes a uid to admin, refuses if any admin already exists |
+| POST | `/admin/users/:uid/role` | admin role required | Body `{ role: "member"\|"moderator"\|"admin" }` |
+| POST | `/moderation/messages/:conversationId/:messageId/delete` | moderator role required | Soft-deletes another user's message — bypasses Firestore rules by design (rules only allow self-delete) |
+| POST | `/notifications/send` | moderator role required | Body `{ token, title, body, data? }`; real FCM HTTP v1 call. Returns `410` and removes the token's Firestore doc if FCM reports it stale/unregistered |
+
+All non-`/health` routes return `401` for a missing/invalid ID token, `403`
+for a valid token with insufficient role, and `502` (with a JSON `detail`)
+for an unexpected upstream Firestore/Identity Toolkit/FCM failure.
+
+## Firestore data model (live deployment)
+
+Not a REST API — accessed directly via the Firebase JS SDK, governed by
+`Firebase/firestore.rules`. See `ARCHITECTURE.md` for the collection shapes
+(`users/{uid}`, `users/{uid}/fcmTokens/{tokenId}`, `conversations/
+{conversationId}`, `conversations/{conversationId}/messages/{messageId}`).
+
+---
+
+## Laravel backend — `/api/*` (disconnected from the live deployment)
+
+**Everything below this point describes the Laravel/MySQL backend, which is
+not part of the live deployment** (see `DECISIONS.md` 2026-07-16 entry) —
+kept for local development of the features in `FEATURE_STATUS.md` that
+haven't been ported to Firestore/the Worker yet.
+
 Base URL (local): `http://127.0.0.1:8000/api`. All requests/responses JSON.
 Auth: `Authorization: Bearer <token>` (Sanctum personal access token — see
 `DECISIONS.md`). Public GET routes accept an optional Bearer token for

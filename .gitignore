@@ -44,6 +44,7 @@ firebase-adminsdk*.json
 *-firebase-adminsdk-*.json
 .cloudflare
 cloudflare.toml
+.wrangler/
 *.credentials.json
 credentials.json
 

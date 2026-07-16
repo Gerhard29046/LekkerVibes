@@ -11,6 +11,8 @@ import {
   ArrowLeft, MapPin, Users, Calendar, MessageCircle,
   Shield, Share2, Flag, Loader2
 } from 'lucide-react';
+import { FEATURES } from '@/lib/featureFlags';
+import ComingSoon from '@/components/ComingSoon';
 
 export default function ClubDetail() {
   const { id } = useParams();
@@ -33,10 +35,18 @@ export default function ClubDetail() {
   };
 
   useEffect(() => {
+    if (!FEATURES.communities) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  if (!FEATURES.communities) {
+    return <ComingSoon feature="Communities" />;
+  }
 
   if (loading) {
     return (

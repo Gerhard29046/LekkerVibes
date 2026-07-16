@@ -5,6 +5,7 @@ import ActivityCard from '@/components/landing/ActivityCard';
 import { useLocation } from '@/hooks/useLocation.jsx';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import { FEATURES } from '@/lib/featureFlags';
 
 export default function GoAloneSection() {
   const [activities, setActivities] = useState([]);
@@ -12,12 +13,15 @@ export default function GoAloneSection() {
   const { selectedCity } = useLocation();
 
   useEffect(() => {
+    if (!FEATURES.events) return;
     setLoading(true);
     eventsApi.list({ is_attend_alone_friendly: 1, per_page: 4 })
       .then(result => setActivities(result.data))
       .catch(() => setActivities([]))
       .finally(() => setLoading(false));
   }, [selectedCity]);
+
+  if (!FEATURES.events) return null;
 
   return (
     <section className="py-16 sm:py-24 px-4 sm:px-6 max-w-7xl mx-auto">

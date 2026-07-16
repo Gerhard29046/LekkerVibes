@@ -9,6 +9,8 @@ import Footer from '@/components/landing/Footer';
 import { Edit2, MapPin, BadgeCheck, Calendar, Users, Bookmark, Settings } from 'lucide-react';
 import moment from 'moment';
 import ProfileEditor from '@/components/profile/ProfileEditor';
+import { FEATURES } from '@/lib/featureFlags';
+import ComingSoon from '@/components/ComingSoon';
 
 export default function Profile() {
   const [profile, setProfile] = useState(null);
@@ -20,6 +22,10 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!FEATURES.profileEdit) {
+      setLoading(false);
+      return;
+    }
     const load = async () => {
       const [profileData, interestsData, saved, myClubs] = await Promise.all([
         profileApi.get(),
@@ -40,6 +46,10 @@ export default function Profile() {
     setProfile(updated);
     setEditOpen(false);
   };
+
+  if (!FEATURES.profileEdit) {
+    return <ComingSoon feature="Profile" />;
+  }
 
   if (loading) {
     return (

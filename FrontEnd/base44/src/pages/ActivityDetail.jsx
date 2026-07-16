@@ -10,6 +10,8 @@ import {
   ArrowLeft, AlertTriangle, MessageCircle, Flag, Loader2
 } from 'lucide-react';
 import moment from 'moment';
+import { FEATURES } from '@/lib/featureFlags';
+import ComingSoon from '@/components/ComingSoon';
 
 export default function ActivityDetail() {
   const { id } = useParams();
@@ -27,10 +29,18 @@ export default function ActivityDetail() {
   };
 
   useEffect(() => {
+    if (!FEATURES.events) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  if (!FEATURES.events) {
+    return <ComingSoon feature="Activities" />;
+  }
 
   if (loading) {
     return (

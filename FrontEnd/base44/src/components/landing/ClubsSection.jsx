@@ -4,6 +4,7 @@ import { communitiesApi } from '@/api/communitiesApi';
 import { useLocation } from '@/hooks/useLocation.jsx';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import { FEATURES } from '@/lib/featureFlags';
 
 export default function ClubsSection() {
   const [clubs, setClubs] = useState([]);
@@ -11,12 +12,15 @@ export default function ClubsSection() {
   const { selectedCity } = useLocation();
 
   useEffect(() => {
+    if (!FEATURES.communities) return;
     setLoading(true);
     communitiesApi.list({ per_page: 4 })
       .then(result => setClubs(result.data))
       .catch(() => setClubs([]))
       .finally(() => setLoading(false));
   }, [selectedCity]);
+
+  if (!FEATURES.communities) return null;
 
   return (
     <section className="py-16 sm:py-24 px-4 sm:px-6 max-w-7xl mx-auto">

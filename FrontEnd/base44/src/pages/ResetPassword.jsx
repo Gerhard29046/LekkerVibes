@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { authApi } from "@/api/authApi";
+import { confirmPasswordReset } from "firebase/auth";
+import { auth } from "@/lib/firebaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,8 +10,11 @@ import AuthLayout from "@/components/AuthLayout";
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
-  const resetToken = searchParams.get("token");
-  const email = searchParams.get("email");
+  // Firebase's password-reset emails append their own action code as
+  // `oobCode` — set the custom action URL for this template (Firebase
+  // console -> Authentication -> Templates) to point at this route so that
+  // param arrives here.
+  const oobCode = searchParams.get("oobCode");
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -26,12 +30,7 @@ export default function ResetPassword() {
     }
     setLoading(true);
     try {
-      await authApi.resetPassword({
-        token: resetToken,
-        email,
-        password: newPassword,
-        password_confirmation: confirmPassword,
-      });
+      await confirmPasswordReset(auth, oobCode, newPassword);
       window.location.href = "/login";
     } catch (err) {
       setError(err.message || "Failed to reset password");
@@ -40,7 +39,7 @@ export default function ResetPassword() {
     }
   };
 
-  if (!resetToken || !email) {
+  if (!oobCode) {
     return (
       <AuthLayout
         icon={AlertTriangle}

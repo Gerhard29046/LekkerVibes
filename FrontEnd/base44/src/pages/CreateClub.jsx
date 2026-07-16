@@ -5,6 +5,8 @@ import { uploadsApi } from '@/api/uploadsApi';
 import { useNavigate, Link } from 'react-router-dom';
 import Navbar from '@/components/landing/Navbar';
 import { ArrowLeft, Upload, Loader2, Users } from 'lucide-react';
+import { FEATURES } from '@/lib/featureFlags';
+import ComingSoon from '@/components/ComingSoon';
 
 export default function CreateClub() {
   const navigate = useNavigate();
@@ -19,6 +21,7 @@ export default function CreateClub() {
   });
 
   useEffect(() => {
+    if (!FEATURES.communities) return;
     locationApi.popular().then(result => setLocations(result.data)).catch(() => setLocations([]));
   }, []);
 
@@ -57,6 +60,10 @@ export default function CreateClub() {
       setSaving(false);
     }
   };
+
+  if (!FEATURES.communities) {
+    return <ComingSoon feature="Creating communities" />;
+  }
 
   return (
     <div className="min-h-screen bg-cream">

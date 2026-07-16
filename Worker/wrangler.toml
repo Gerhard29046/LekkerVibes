@@ -1,0 +1,21 @@
+name = "lekkervibes-api"
+main = "src/index.ts"
+compatibility_date = "2026-07-16"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# Comma-separated list of allowed CORS origins. Update this once the real
+# Cloudflare Pages hostname is known, and again if/when a custom domain is
+# attached (attaching a custom domain is a config change here, not a code
+# change).
+ALLOWED_ORIGINS = "https://lekkervibes.pages.dev,http://localhost:5173,http://127.0.0.1:5173"
+FIREBASE_PROJECT_ID = "lekkervibes-lvid001"
+GCP_PROJECT_ID = "lekkervibes-lvid001"
+
+# Secrets (never stored here) — set via `wrangler secret put <NAME>`:
+#   GCP_SERVICE_ACCOUNT_JSON  — full service account key JSON (Firestore/Identity Toolkit/FCM auth)
+#   ADMIN_BOOTSTRAP_SECRET    — random string, used once to create the first admin user
+
+# No [[routes]] block — this Worker deploys to the default *.workers.dev
+# subdomain. Attaching api.lekkervibes.co.za later only requires adding a
+# routes/custom-domain block here, no source changes.

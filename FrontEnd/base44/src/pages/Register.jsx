@@ -1,20 +1,31 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { authApi } from "@/api/authApi";
+import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UserPlus, Mail, Lock, User, Loader2 } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
+import GoogleIcon from "@/components/GoogleIcon";
+
+// Firebase Auth error codes -> friendly messages for the ones users hit most.
+const FIREBASE_AUTH_ERROR_MESSAGES = {
+  "auth/email-already-in-use": "An account with this email already exists",
+  "auth/invalid-email": "Please enter a valid email address",
+  "auth/weak-password": "Password must be at least 6 characters",
+  "auth/popup-closed-by-user": "Google sign-in was cancelled",
+};
 
 export default function Register() {
   const navigate = useNavigate();
+  const { register, signInWithGoogle } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,18 +36,25 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      await authApi.register({
-        name,
-        email,
-        password,
-        password_confirmation: confirmPassword,
-      });
+      await register({ name, email, password });
       navigate("/");
     } catch (err) {
-      const firstFieldError = err.errors ? Object.values(err.errors)[0]?.[0] : null;
-      setError(firstFieldError || err.message || "Registration failed");
+      setError(FIREBASE_AUTH_ERROR_MESSAGES[err.code] || err.message || "Registration failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+      navigate("/");
+    } catch (err) {
+      setError(FIREBASE_AUTH_ERROR_MESSAGES[err.code] || err.message || "Google sign-in failed");
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -139,6 +157,27 @@ export default function Register() {
           )}
         </Button>
       </form>
+
+      <div className="flex items-center gap-3 my-5">
+        <div className="flex-1 h-px bg-border" />
+        <span className="text-xs text-muted-foreground">or</span>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full h-12 font-medium"
+        onClick={handleGoogleSignIn}
+        disabled={googleLoading}
+      >
+        {googleLoading ? (
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        ) : (
+          <GoogleIcon className="w-4 h-4 mr-2" />
+        )}
+        Continue with Google
+      </Button>
     </AuthLayout>
   );
 }

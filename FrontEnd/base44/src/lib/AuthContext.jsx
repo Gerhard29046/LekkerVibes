@@ -1,6 +1,38 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import { authApi } from '@/api/authApi';
-import { getToken, setToken } from '@/api/apiClient';
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut,
+  updateProfile,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebaseClient';
+import { registerFcmToken } from '@/lib/fcmRegistration';
+
+// Shared by every sign-in path (email/password register, Google) so every
+// authenticated user ends up with a users/{uid} Firestore profile doc. Only
+// sets `role: member` on first creation — Firestore rules block a user from
+// changing their own `role`, so a repeat merge that re-sent `role: member`
+// would fail outright for anyone the Worker has since promoted.
+async function ensureUserProfile(firebaseUser, extra = {}) {
+  const ref = doc(db, 'users', firebaseUser.uid);
+  const existing = await getDoc(ref);
+  const displayName = firebaseUser.displayName || extra.displayName || firebaseUser.email;
+
+  if (!existing.exists()) {
+    await setDoc(ref, {
+      displayName,
+      email: firebaseUser.email,
+      role: 'member',
+      createdAt: serverTimestamp(),
+    });
+  } else {
+    await setDoc(ref, { displayName, email: firebaseUser.email }, { merge: true });
+  }
+}
 
 const AuthContext = createContext();
 
@@ -10,36 +42,46 @@ export const AuthProvider = ({ children }) => {
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
 
-  const checkUserAuth = useCallback(async () => {
-    if (!getToken()) {
-      setUser(null);
-      setIsAuthenticated(false);
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setIsAuthenticated(!!firebaseUser);
       setIsLoadingAuth(false);
       setAuthChecked(true);
-      return;
-    }
-
-    setIsLoadingAuth(true);
-    try {
-      const currentUser = await authApi.me();
-      setUser(currentUser);
-      setIsAuthenticated(true);
-    } catch {
-      setToken(null);
-      setUser(null);
-      setIsAuthenticated(false);
-    } finally {
-      setIsLoadingAuth(false);
-      setAuthChecked(true);
-    }
+      if (firebaseUser) {
+        registerFcmToken(firebaseUser.uid);
+      }
+    });
+    return unsubscribe;
   }, []);
 
-  useEffect(() => {
-    checkUserAuth();
-  }, [checkUserAuth]);
+  // Kept for compatibility with call sites that used to await this after
+  // login/register — onAuthStateChanged already keeps `user` current, so
+  // this just resolves once the current auth state is known.
+  const checkUserAuth = useCallback(async () => auth.currentUser, []);
+
+  const login = async ({ email, password }) => {
+    const credential = await signInWithEmailAndPassword(auth, email, password);
+    return credential.user;
+  };
+
+  const register = async ({ email, password, name }) => {
+    const credential = await createUserWithEmailAndPassword(auth, email, password);
+    if (name) {
+      await updateProfile(credential.user, { displayName: name });
+    }
+    await ensureUserProfile(credential.user, { displayName: name });
+    return credential.user;
+  };
+
+  const signInWithGoogle = async () => {
+    const credential = await signInWithPopup(auth, new GoogleAuthProvider());
+    await ensureUserProfile(credential.user);
+    return credential.user;
+  };
 
   const logout = async () => {
-    await authApi.logout().catch(() => {});
+    await signOut(auth).catch(() => {});
     setUser(null);
     setIsAuthenticated(false);
     window.location.href = '/login';
@@ -60,6 +102,9 @@ export const AuthProvider = ({ children }) => {
       isLoadingPublicSettings: false,
       authError: null,
       authChecked,
+      login,
+      register,
+      signInWithGoogle,
       logout,
       navigateToLogin,
       checkUserAuth,

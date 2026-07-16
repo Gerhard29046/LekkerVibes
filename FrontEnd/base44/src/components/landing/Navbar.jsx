@@ -4,6 +4,7 @@ import { MapPin, Menu, X, ChevronDown, User, Plus } from 'lucide-react';
 import { useLocation } from '@/hooks/useLocation.jsx';
 import { useAuth } from '@/lib/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FEATURES } from '@/lib/featureFlags';
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -14,11 +15,10 @@ export default function Navbar() {
 
   const navLinks = [
     { label: 'Home', to: '/' },
-    { label: 'Discover', to: '/discover' },
-    { label: 'Communities', to: '/clubs' },
-    { label: 'Cities', to: '/cities' },
+    FEATURES.events && { label: 'Discover', to: '/discover' },
+    FEATURES.communities && { label: 'Communities', to: '/clubs' },
     { label: 'Safety', to: '/safety' },
-  ];
+  ].filter(Boolean);
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/20">
@@ -84,33 +84,39 @@ export default function Navbar() {
             {user ? (
               <>
                 {/* Create dropdown */}
-                <div className="relative">
-                  <button onClick={() => setCreateOpen(!createOpen)}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-ocean/10 text-ocean text-sm font-semibold rounded-full hover:bg-ocean/20 transition-colors">
-                    <Plus className="w-3.5 h-3.5" /> Create
-                  </button>
-                  <AnimatePresence>
-                    {createOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -4 }}
-                        className="absolute top-full mt-1 right-0 bg-white rounded-xl shadow-xl border border-sand p-2 min-w-[170px]"
-                      >
-                        <Link to="/create-activity" onClick={() => setCreateOpen(false)}
-                          className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-charcoal hover:bg-sand transition-colors font-medium">
-                          <Plus className="w-4 h-4 text-coral" /> New Activity
-                        </Link>
-                        <Link to="/create-club" onClick={() => setCreateOpen(false)}
-                          className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-charcoal hover:bg-sand transition-colors font-medium">
-                          <Plus className="w-4 h-4 text-teal" /> New Group
-                        </Link>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+                {(FEATURES.events || FEATURES.communities) && (
+                  <div className="relative">
+                    <button onClick={() => setCreateOpen(!createOpen)}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-ocean/10 text-ocean text-sm font-semibold rounded-full hover:bg-ocean/20 transition-colors">
+                      <Plus className="w-3.5 h-3.5" /> Create
+                    </button>
+                    <AnimatePresence>
+                      {createOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          className="absolute top-full mt-1 right-0 bg-white rounded-xl shadow-xl border border-sand p-2 min-w-[170px]"
+                        >
+                          {FEATURES.events && (
+                            <Link to="/create-activity" onClick={() => setCreateOpen(false)}
+                              className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-charcoal hover:bg-sand transition-colors font-medium">
+                              <Plus className="w-4 h-4 text-coral" /> New Activity
+                            </Link>
+                          )}
+                          {FEATURES.communities && (
+                            <Link to="/create-club" onClick={() => setCreateOpen(false)}
+                              className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-charcoal hover:bg-sand transition-colors font-medium">
+                              <Plus className="w-4 h-4 text-teal" /> New Group
+                            </Link>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
                 <Link to="/profile" className="w-9 h-9 rounded-full bg-gradient-to-br from-ocean to-teal flex items-center justify-center text-white font-bold text-sm hover:shadow-md transition-all">
-                  {user.name ? user.name[0].toUpperCase() : <User className="w-4 h-4" />}
+                  {user.displayName ? user.displayName[0].toUpperCase() : <User className="w-4 h-4" />}
                 </Link>
               </>
             ) : (
@@ -167,8 +173,12 @@ export default function Navbar() {
                 {user ? (
                   <>
                     <Link to="/profile" onClick={() => setMobileOpen(false)} className="block px-3 py-2.5 text-sm font-medium text-charcoal/80 hover:text-ocean rounded-lg hover:bg-ocean/5">My Profile</Link>
-                    <Link to="/create-activity" onClick={() => setMobileOpen(false)} className="block px-3 py-2.5 text-sm font-medium text-charcoal/80 hover:text-ocean rounded-lg hover:bg-ocean/5">Create Activity</Link>
-                    <Link to="/create-club" onClick={() => setMobileOpen(false)} className="block px-3 py-2.5 text-sm font-medium text-charcoal/80 hover:text-ocean rounded-lg hover:bg-ocean/5">Create Group</Link>
+                    {FEATURES.events && (
+                      <Link to="/create-activity" onClick={() => setMobileOpen(false)} className="block px-3 py-2.5 text-sm font-medium text-charcoal/80 hover:text-ocean rounded-lg hover:bg-ocean/5">Create Activity</Link>
+                    )}
+                    {FEATURES.communities && (
+                      <Link to="/create-club" onClick={() => setMobileOpen(false)} className="block px-3 py-2.5 text-sm font-medium text-charcoal/80 hover:text-ocean rounded-lg hover:bg-ocean/5">Create Group</Link>
+                    )}
                   </>
                 ) : (
                   <>

@@ -6,6 +6,8 @@ import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 import ActivityCard from '@/components/landing/ActivityCard';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FEATURES } from '@/lib/featureFlags';
+import ComingSoon from '@/components/ComingSoon';
 
 export default function Discover() {
   const [activities, setActivities] = useState([]);
@@ -20,10 +22,12 @@ export default function Discover() {
   const { selectedCity } = useLocation();
 
   useEffect(() => {
+    if (!FEATURES.events) return;
     eventCategoriesApi.list().then(setCategories).catch(() => setCategories([]));
   }, []);
 
   useEffect(() => {
+    if (!FEATURES.events) return;
     setLoading(true);
     const params = { search: search || undefined };
     if (categoryId) params.category_id = categoryId;
@@ -36,6 +40,10 @@ export default function Discover() {
       .catch(() => setActivities([]))
       .finally(() => setLoading(false));
   }, [categoryId, beginnerOnly, freeOnly, aloneOnly, search]);
+
+  if (!FEATURES.events) {
+    return <ComingSoon feature="Discover" />;
+  }
 
   return (
     <div className="min-h-screen bg-cream">

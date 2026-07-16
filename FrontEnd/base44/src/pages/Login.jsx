@@ -1,30 +1,55 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { authApi } from "@/api/authApi";
+import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LogIn, Mail, Lock, Loader2 } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
+import GoogleIcon from "@/components/GoogleIcon";
+
+// Firebase Auth error codes -> friendly messages for the ones users hit most.
+const FIREBASE_AUTH_ERROR_MESSAGES = {
+  "auth/invalid-credential": "Invalid email or password",
+  "auth/user-not-found": "Invalid email or password",
+  "auth/wrong-password": "Invalid email or password",
+  "auth/too-many-requests": "Too many attempts — please wait a moment and try again",
+  "auth/popup-closed-by-user": "Google sign-in was cancelled",
+};
 
 export default function Login() {
   const navigate = useNavigate();
+  const { login, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      await authApi.login({ email, password });
+      await login({ email, password });
       navigate("/");
     } catch (err) {
-      setError(err.errors?.email?.[0] || err.message || "Invalid email or password");
+      setError(FIREBASE_AUTH_ERROR_MESSAGES[err.code] || err.message || "Invalid email or password");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+      navigate("/");
+    } catch (err) {
+      setError(FIREBASE_AUTH_ERROR_MESSAGES[err.code] || err.message || "Google sign-in failed");
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -98,6 +123,27 @@ export default function Login() {
           )}
         </Button>
       </form>
+
+      <div className="flex items-center gap-3 my-5">
+        <div className="flex-1 h-px bg-border" />
+        <span className="text-xs text-muted-foreground">or</span>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full h-12 font-medium"
+        onClick={handleGoogleSignIn}
+        disabled={googleLoading}
+      >
+        {googleLoading ? (
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        ) : (
+          <GoogleIcon className="w-4 h-4 mr-2" />
+        )}
+        Continue with Google
+      </Button>
     </AuthLayout>
   );
 }

@@ -6,6 +6,38 @@ merely scaffolded. Updated as work progresses.
 
 Legend: ⬜ Not started · 🟨 In progress · ✅ Done · 🚫 Blocked
 
+## Live deployment (2026-07-16 — Firebase + Cloudflare Worker)
+
+See `DECISIONS.md` for the pivot rationale. **Everything below this section
+predates the pivot and describes the Laravel/MySQL backend**, which is
+disconnected from the live site (still used locally for developing the
+not-yet-ported features) — do not assume those rows describe what's
+reachable from `https://lekkervibes.pages.dev` today.
+
+| Area | Status | Notes |
+|---|---|---|
+| Firebase Authentication (Email/Password) | ✅ | Live-tested via Identity Toolkit REST: register, login, session persistence (real API calls, not a browser click-through) |
+| Firebase Authentication (Google) | ✅ | `GoogleAuthProvider` + `signInWithPopup` wired in `Login.jsx`/`Register.jsx`; code path verified via build/lint — a real interactive Google OAuth popup consent flow needs a browser, which this environment doesn't have; Gerhard should click through it once live |
+| Firestore user profile creation/merge | ✅ | Live-tested: profile doc created on first sign-in, self-role-promotion correctly rejected by rules |
+| Firestore real-time group chat | ✅ | Live-tested with two real accounts: send/read as member, sender-impersonation rejected, non-member posting rejected, own-message soft-delete allowed, other's-message soft-delete rejected |
+| FCM token registration + foreground/background handling | 🟨 | Token-save-to-Firestore path and `onMessage`/service-worker code written and build-verified; actual browser permission prompt + real device token registration needs a browser to observe, not done in this pass |
+| Cloudflare Worker `lekkervibes-api` — `/v1/health` | ✅ | Live-tested, 200 |
+| Worker — auth middleware (ID token verification) | ✅ | Live-tested: missing token → 401, invalid token → 401, valid token/insufficient role → 403 |
+| Worker — admin bootstrap + role changes | ✅ | Live-tested end-to-end incl. custom-claim propagation after token refresh |
+| Worker — moderator message deletion | ✅ | Live-tested: a promoted admin deleted another test user's message via the Worker; direct Firestore attempt by a non-sender correctly rejected by rules first |
+| Worker — FCM send (`POST /v1/notifications/send`) | ✅ | Live-tested against the real FCM HTTP v1 API (auth + call path confirmed via a real "invalid token" response from Google); no real device token available to verify actual delivery to a browser |
+| Worker — stale FCM token cleanup | ✅ | Live-tested: a seeded fake token's Firestore doc was found via a collection-group query and deleted after FCM reported it invalid |
+| Firestore security rules deployed | ✅ | `firebase deploy --only firestore:rules`, `Firebase/firestore.rules` |
+| Firestore indexes deployed | ✅ | `COLLECTION_GROUP` index on `fcmTokens.token` (needed for stale-token cleanup) |
+| Cloudflare Pages deployment | ✅ | `https://lekkervibes.pages.dev`, direct upload (not Git-connected — see `DECISIONS.md` open item) |
+| Cloudflare Worker deployment | ✅ | `https://lekkervibes-api.gerhard-ark-of-war.workers.dev` |
+| Feature-flagged pages (events, communities, locations, uploads, reports, blocks, saved, profile editing) | ⬜ | Disabled via `src/lib/featureFlags.js`, showing `ComingSoon` — not ported to Firestore/Worker this pass, Laravel implementations below are unaffected but unreachable live |
+| Broader moderation actions (warn/mute/ban), organiser verification | ⬜ | No Worker endpoints — no product flow calls them yet |
+| Automatic FCM dispatch (e.g. on new message) | ⬜ | `POST /v1/notifications/send` is real but manually-invoked only; wiring it to events needs a Cloud Function (excluded) or Cron Trigger, neither built |
+| Cloudflare Pages Git integration (auto-deploy on push) | ⬜ | Pages project created via direct upload; connecting it to GitHub is a dashboard action, not done |
+
+## Laravel/MySQL backend (disconnected from the live deployment above)
+
 | Area | Status | Notes |
 |---|---|---|
 | Repo restructure (frontend consolidated into `FrontEnd/base44/`) | ✅ | Build verified |

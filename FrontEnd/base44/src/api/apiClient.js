@@ -1,4 +1,14 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+import { auth } from '@/lib/firebaseClient';
+
+// Base URL for the Cloudflare Worker's trusted /v1/* endpoints — NOT used
+// for Firestore/Auth, which the frontend talks to directly via the Firebase
+// client SDK.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8787/v1';
+
+// Deprecated: localStorage Bearer-token storage from the Laravel/Sanctum
+// era. No longer used (tokens now come from Firebase Auth's
+// currentUser.getIdToken()) — left in place, unused, per the project's
+// no-delete-without-approval policy.
 const TOKEN_STORAGE_KEY = 'lekkervibes_token';
 
 export function getToken() {
@@ -42,7 +52,7 @@ export async function apiRequest(path, { method = 'GET', body, params, raw = fal
   if (!isFormData && body !== undefined) {
     headers['Content-Type'] = 'application/json';
   }
-  const token = getToken();
+  const token = await auth.currentUser?.getIdToken();
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }

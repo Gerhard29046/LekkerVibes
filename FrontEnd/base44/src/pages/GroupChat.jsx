@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { messagesApi } from '@/api/messagesApi';
 import { useAuth } from '@/lib/AuthContext';
 import { ArrowLeft, Send, Trash2, MessageCircle } from 'lucide-react';
 import moment from 'moment';
 
-// Polling-based live updates for v1 — see documentation/DECISIONS.md for
-// why (no WebSocket transport yet; Laravel Reverb is the documented
-// upgrade path).
-const POLL_INTERVAL_MS = 4000;
+// Real-time via a Firestore onSnapshot listener — no polling. See
+// documentation/DECISIONS.md for the Laravel-Reverb-era polling approach
+// this replaced.
 
 export default function GroupChat() {
   const { conversationId } = useParams();
@@ -19,45 +18,37 @@ export default function GroupChat() {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const bottomRef = useRef(null);
-  const lastIdRef = useRef(0);
-
-  const fetchNewMessages = useCallback(async () => {
-    const newMsgs = await messagesApi.list(conversationId, { after_id: lastIdRef.current || undefined });
-    if (newMsgs.length > 0) {
-      lastIdRef.current = newMsgs[newMsgs.length - 1].id;
-      setMessages(m => [...m, ...newMsgs]);
-    }
-  }, [conversationId]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    Promise.all([
-      messagesApi.conversation(conversationId).catch(() => null),
-      messagesApi.list(conversationId, {}),
-    ]).then(([convo, msgs]) => {
-      if (cancelled) return;
-      setConversation(convo);
-      setMessages(msgs);
-      lastIdRef.current = msgs.length > 0 ? msgs[msgs.length - 1].id : 0;
-      messagesApi.markConversationRead(conversationId).catch(() => {});
-    }).finally(() => !cancelled && setLoading(false));
 
-    const interval = setInterval(fetchNewMessages, POLL_INTERVAL_MS);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, [conversationId, fetchNewMessages]);
+    messagesApi.conversation(conversationId).then((convo) => {
+      if (!cancelled) setConversation(convo);
+    });
+    messagesApi.markConversationRead().catch(() => {});
+
+    const unsubscribe = messagesApi.subscribeToMessages(conversationId, (msgs) => {
+      if (cancelled) return;
+      setMessages(msgs);
+      setLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [conversationId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!text.trim() || sending) return;
+    if (!text.trim() || sending || !user) return;
     setSending(true);
     try {
-      const msg = await messagesApi.send(conversationId, text.trim());
-      setMessages(m => [...m, msg]);
-      lastIdRef.current = msg.id;
+      await messagesApi.send(conversationId, text.trim(), user);
       setText('');
     } finally {
       setSending(false);
@@ -72,8 +63,7 @@ export default function GroupChat() {
   };
 
   const deleteMessage = async (msgId) => {
-    await messagesApi.remove(msgId);
-    setMessages(m => m.map(msg => (msg.id === msgId ? { ...msg, is_deleted: true, body: null } : msg)));
+    await messagesApi.remove(conversationId, msgId);
   };
 
   const backLink = conversation?.community ? `/club/${conversation.community.id}`
@@ -118,29 +108,29 @@ export default function GroupChat() {
           </div>
         )}
         {messages.map((msg) => {
-          const isOwn = msg.sender?.id === user?.id;
+          const isOwn = msg.senderId === user?.uid;
           return (
             <div key={msg.id} className={`flex gap-2.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
               {/* Avatar */}
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-ocean to-teal flex items-center justify-center shrink-0 overflow-hidden">
-                <span className="text-white text-xs font-bold">{(msg.sender?.name || (msg.is_system ? 'LV' : 'M'))[0].toUpperCase()}</span>
+                <span className="text-white text-xs font-bold">{(msg.senderName || (msg.isSystem ? 'LV' : 'M'))[0].toUpperCase()}</span>
               </div>
               <div className={`max-w-xs sm:max-w-sm lg:max-w-md group ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
-                {!isOwn && msg.sender && <p className="text-xs text-charcoal/50 font-medium mb-1 px-1">{msg.sender.name}</p>}
+                {!isOwn && msg.senderName && <p className="text-xs text-charcoal/50 font-medium mb-1 px-1">{msg.senderName}</p>}
                 <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-                  msg.is_deleted
+                  msg.isDeleted
                     ? 'bg-sand/60 text-charcoal/40 italic rounded-tl-sm'
                     : isOwn
                       ? 'bg-gradient-to-r from-ocean to-teal text-white rounded-tr-sm'
-                      : msg.is_system
+                      : msg.isSystem
                         ? 'bg-coral/10 border border-coral/20 text-charcoal rounded-tl-sm'
                         : 'bg-white border border-sand text-charcoal rounded-tl-sm shadow-sm'
                 }`}>
-                  {msg.is_deleted ? 'This message was deleted' : msg.body}
+                  {msg.isDeleted ? 'This message was deleted' : msg.body}
                 </div>
                 <div className={`flex items-center gap-2 mt-1 ${isOwn ? 'flex-row-reverse' : ''}`}>
-                  <p className="text-[10px] text-charcoal/40 px-1">{moment(msg.created_at).fromNow()}</p>
-                  {isOwn && !msg.is_deleted && (
+                  <p className="text-[10px] text-charcoal/40 px-1">{msg.createdAt ? moment(msg.createdAt.toDate ? msg.createdAt.toDate() : msg.createdAt).fromNow() : 'sending…'}</p>
+                  {isOwn && !msg.isDeleted && (
                     <button onClick={() => deleteMessage(msg.id)}
                       className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-sand rounded">
                       <Trash2 className="w-3 h-3 text-charcoal/40" />
