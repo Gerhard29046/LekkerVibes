@@ -63,11 +63,21 @@ export const communitiesApi = {
   },
 
   // { name, description, city, category, rules, imageURL }
+  //
+  // This is deliberately NOT one atomic writeBatch: the member/conversation
+  // docs' security rules need to `get()` the community doc to confirm
+  // `ownerId == request.auth.uid`, and Firestore rules evaluate a batch's
+  // writes against the state at the START of the batch — they can't see a
+  // sibling write's effect from later in the same batch. The community doc
+  // must actually exist first, as a separately-committed write, or the
+  // member/conversation creates are rejected with PERMISSION_DENIED
+  // (confirmed via a live REST test against the deployed rules). If the
+  // second step fails, the orphaned community doc is cleaned up rather than
+  // left half-created.
   async create(data, currentUser) {
     const communityRef = doc(collection(db, 'communities'));
-    const batch = writeBatch(db);
 
-    batch.set(communityRef, {
+    await setDoc(communityRef, {
       name: data.name,
       description: data.description || '',
       city: data.city,
@@ -80,20 +90,27 @@ export const communitiesApi = {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    batch.set(doc(db, 'communities', communityRef.id, 'members', currentUser.uid), {
-      uid: currentUser.uid,
-      role: 'organiser',
-      joinedAt: serverTimestamp(),
-    });
-    // Paired chat conversation — conversationId == communityId, see
-    // Firebase/firestore.rules for why this needs no separate memberIds sync.
-    batch.set(doc(db, 'conversations', communityRef.id), {
-      type: 'community',
-      communityId: communityRef.id,
-      createdAt: serverTimestamp(),
-    });
 
-    await batch.commit();
+    try {
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'communities', communityRef.id, 'members', currentUser.uid), {
+        uid: currentUser.uid,
+        role: 'organiser',
+        joinedAt: serverTimestamp(),
+      });
+      // Paired chat conversation — conversationId == communityId, see
+      // Firebase/firestore.rules for why this needs no separate memberIds sync.
+      batch.set(doc(db, 'conversations', communityRef.id), {
+        type: 'community',
+        communityId: communityRef.id,
+        createdAt: serverTimestamp(),
+      });
+      await batch.commit();
+    } catch (err) {
+      await deleteDoc(communityRef).catch(() => {});
+      throw err;
+    }
+
     return { id: communityRef.id };
   },
 
