@@ -4,6 +4,23 @@ Running log of professional decisions made while building LekkerVibes from
 scratch, in case a future session (human or agent) needs to know *why*
 something is the way it is. Newest entries at the top.
 
+## 2026-07-17 — GitHub Actions frontend deploy: missing VITE_* secrets caused a white screen
+
+The `.github/workflows/deploy-pages.yml` auto-deploy workflow reported
+"success" on every run, but the live site went blank (white screen). Cause:
+the workflow's repo secrets only had `CLOUDFLARE_API_TOKEN`/
+`CLOUDFLARE_ACCOUNT_ID` — the nine `VITE_FIREBASE_*`/`VITE_API_BASE_URL`
+build-time secrets were never added. Vite doesn't fail the build on missing
+env vars (it just bakes in blank strings), so `npm run build` and the
+Cloudflare Pages upload both "succeeded" while shipping a bundle with an
+empty Firebase config. `initializeApp()`/`getAuth()` then throw at module
+load time, before React ever renders into `#root` — a blank page with no
+console-visible build error, only a runtime one. Confirmed by diffing the
+deployed bundle (zero Firebase config strings present) against a local
+build from `.env.local` (real values present). Fixed by adding all nine
+`VITE_*` secrets alongside the Cloudflare ones; verified by re-running the
+workflow and diffing the newly deployed bundle for the real config values.
+
 ## 2026-07-16 — First live deployment: Laravel/MySQL replaced by Firebase + a Cloudflare Worker
 
 Gerhard doesn't yet own `lekkervibes.co.za`, and the Laravel/MySQL backend
