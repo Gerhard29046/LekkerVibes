@@ -1,0 +1,57 @@
+name: Deploy frontend to Cloudflare Pages
+
+# Deploys FrontEnd/base44/dist to the existing Cloudflare Pages project
+# "lekkervibes" (a Direct Upload project — deliberately NOT connected via
+# Cloudflare's dashboard Git integration; this workflow is the automation
+# path instead, per documentation/DECISIONS.md). Never creates a new Pages
+# project — cloudflare/pages-action deploys to project-name below only if
+# it already exists.
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: FrontEnd/base44
+        run: npm ci
+
+      - name: Build
+        working-directory: FrontEnd/base44
+        run: npm run build
+        env:
+          # Baked into the static bundle at build time (Vite) — see
+          # documentation/DECISIONS.md for why these must live here as
+          # repo secrets rather than in Cloudflare Pages' dashboard env
+          # var fields, which have no effect on a Direct Upload project.
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+          VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: lekkervibes
+          directory: FrontEnd/base44/dist
+          # Direct Upload projects have no linked git branch, so there is
+          # no "production branch" for the action to compare against —
+          # pin it explicitly to always deploy as production.
+          branch: main
