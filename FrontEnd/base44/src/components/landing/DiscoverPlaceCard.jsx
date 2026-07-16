@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapPin, Star, Bookmark, CalendarPlus, ExternalLink, Info, Clock } from 'lucide-react';
 import { placePhotoUrl } from '@/api/discoverApi';
 import { savedApi, plansApi } from '@/api/savedApi';
@@ -13,6 +13,12 @@ export default function DiscoverPlaceCard({ place }) {
   const navigate = useNavigate();
   const [saved, setSaved] = useState(false);
   const [planned, setPlanned] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    savedApi.has(user.uid, place.placeId).then(setSaved);
+    plansApi.has(user.uid, place.placeId).then(setPlanned);
+  }, [user, place.placeId]);
 
   const imageSrc = placePhotoUrl(place.photoUrl) ||
     'https://images.unsplash.com/photo-1543007630-9710e4a00a20?w=600';
