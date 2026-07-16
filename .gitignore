@@ -1,6 +1,11 @@
-#env
+# Environment files — never commit real env files, but DO allow example/template files
 .env
+.env.local
+.env.production
+.env.*.local
 .env.*
+!.env.example
+!**/.env.example
 
 # Logs
 /logs
@@ -11,10 +16,36 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Dependencies / build output
+node_modules/
+vendor/
+dist/
+dist-ssr/
+build/
 *.local
+
+# Mobile / native build tooling (defensive — not currently used by this project)
+.gradle/
+local.properties
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+
+# Secrets, keys, and credentials of any kind
+*.pem
+*.key
+!BackEnd/storage/*.key
+*.pfx
+*.cer
+*.crt
+serviceAccountKey*.json
+firebase-adminsdk*.json
+*-firebase-adminsdk-*.json
+.cloudflare
+cloudflare.toml
+*.credentials.json
+credentials.json
 
 # Editor directories and files
 .vscode/*
@@ -27,6 +58,10 @@ dist-ssr
 *.sln
 *.sw?
 
-.env
 .vite
 base44/.app.jsonc
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
