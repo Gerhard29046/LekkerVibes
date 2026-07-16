@@ -6,6 +6,7 @@ import { useClickOutside } from '@/hooks/useClickOutside.jsx';
 import { useAuth } from '@/lib/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FEATURES } from '@/lib/featureFlags';
+import NotificationsBell from './NotificationsBell';
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -127,6 +128,7 @@ export default function Navbar() {
                     </AnimatePresence>
                   </div>
                 )}
+                <NotificationsBell />
                 <Link to="/profile" className="w-9 h-9 rounded-full bg-gradient-to-br from-ocean to-teal flex items-center justify-center text-white font-bold text-sm hover:shadow-md transition-all">
                   {user.displayName ? user.displayName[0].toUpperCase() : <User className="w-4 h-4" />}
                 </Link>

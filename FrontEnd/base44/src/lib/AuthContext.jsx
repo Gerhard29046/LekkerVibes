@@ -11,12 +11,16 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebaseClient';
 import { registerFcmToken } from '@/lib/fcmRegistration';
+import { DEFAULT_PRIVACY } from '@/api/profileApi';
 
 // Shared by every sign-in path (email/password register, Google) so every
 // authenticated user ends up with a users/{uid} Firestore profile doc. Only
 // sets `role: member` on first creation — Firestore rules block a user from
 // changing their own `role`, so a repeat merge that re-sent `role: member`
-// would fail outright for anyone the Worker has since promoted.
+// would fail outright for anyone the Worker has since promoted. Seeds the
+// recommended-default `privacy` map too — without it, Firestore rules fail
+// closed (safe, but means nobody's followers/following list etc. would be
+// readable to anyone but themselves until they happen to open Settings).
 async function ensureUserProfile(firebaseUser, extra = {}) {
   const ref = doc(db, 'users', firebaseUser.uid);
   const existing = await getDoc(ref);
@@ -27,6 +31,7 @@ async function ensureUserProfile(firebaseUser, extra = {}) {
       displayName,
       email: firebaseUser.email,
       role: 'member',
+      privacy: DEFAULT_PRIVACY,
       createdAt: serverTimestamp(),
     });
   } else {

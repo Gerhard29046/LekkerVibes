@@ -1,52 +1,81 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link, Navigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, Link, Navigate, useNavigate } from 'react-router-dom';
 import { profileApi } from '@/api/profileApi';
 import { communitiesApi } from '@/api/communitiesApi';
 import { eventsApi } from '@/api/eventsApi';
+import { followApi } from '@/api/followApi';
+import { socialLinksApi, PLATFORMS } from '@/api/socialLinksApi';
+import { reportsApi } from '@/api/reportsApi';
+import { apiClient } from '@/api/apiClient';
 import { useAuth } from '@/lib/AuthContext';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
-import { MapPin, BadgeCheck, Calendar, Users } from 'lucide-react';
+import {
+  MapPin, BadgeCheck, ShieldCheck, Calendar, Users, UserPlus, UserCheck, Clock,
+  Instagram, Facebook, Link2, Lock, MoreVertical, Flag, Ban,
+} from 'lucide-react';
 import moment from 'moment';
 
-// Public view of another member's profile. Only the fields the product
-// treats as public are rendered here (see profileApi's EDITABLE_FIELDS /
-// Firebase/firestore.rules) — email is never shown regardless of what the
-// underlying doc contains, since there's no per-field read restriction in
-// this pass's rules (documented as a known limitation).
+const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', strava: 'Strava', website: 'Website' };
+const PLATFORM_ICONS = { instagram: Instagram, facebook: Facebook, strava: Link2, website: Link2 };
+
 export default function PublicProfile() {
   const { uid } = useParams();
   const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [clubs, setClubs] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [relationship, setRelationship] = useState('none'); // none | requested | following
+  const [revealStatus, setRevealStatus] = useState(null); // null | pending | accepted
+  const [grantedPlatforms, setGrantedPlatforms] = useState([]);
+  const [socialLinks, setSocialLinks] = useState({});
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const [reported, setReported] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    Promise.all([
+  const load = useCallback(async () => {
+    const [profileData, memberships, organisedEvents, followers] = await Promise.all([
       profileApi.get(uid),
       communitiesApi.myMemberships(uid).catch(() => []),
       eventsApi.byOrganiser(uid).catch(() => []),
-    ]).then(([profileData, memberships, organisedEvents]) => {
-      setProfile(profileData);
-      setClubs(memberships);
-      setUpcomingEvents(organisedEvents);
-    }).catch(() => setProfile(null))
-      .finally(() => setLoading(false));
-  }, [uid, isAuthenticated]);
+      followApi.followerCount(uid).catch(() => 0),
+    ]);
+    setProfile(profileData);
+    setClubs(memberships);
+    setUpcomingEvents(organisedEvents);
+    setFollowerCount(followers);
+
+    if (user && profileData) {
+      const [state, reveal] = await Promise.all([
+        followApi.getRelationshipState(user.uid, uid),
+        socialLinksApi.getRevealRequestStatus(user.uid, uid),
+      ]);
+      setRelationship(state);
+      setRevealStatus(reveal?.status || null);
+      if (reveal?.status === 'accepted') {
+        const grant = await socialLinksApi.getGrant(uid, user.uid);
+        const platforms = grant?.platforms || [];
+        setGrantedPlatforms(platforms);
+        const values = await Promise.all(platforms.map((p) => socialLinksApi.get(uid, p)));
+        setSocialLinks(Object.fromEntries(platforms.map((p, i) => [p, values[i]])));
+      }
+    }
+  }, [uid, user]);
+
+  useEffect(() => {
+    if (!isAuthenticated) { setLoading(false); return; }
+    setLoading(true);
+    load().finally(() => setLoading(false));
+  }, [isAuthenticated, load]);
 
   if (user?.uid === uid) {
     return <Navigate to="/profile" replace />;
   }
 
-  // Profiles require sign-in to view (matches Firebase/firestore.rules —
-  // the users collection isn't publicly readable), so give signed-out
-  // visitors a clear prompt rather than a misleading "not found".
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-cream">
@@ -85,6 +114,65 @@ export default function PublicProfile() {
 
   const displayName = profile.displayName || 'Member';
   const initials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const availablePlatforms = PLATFORMS.filter((p) => profile[`has${p[0].toUpperCase()}${p.slice(1)}`]);
+
+  const handleFollow = async () => {
+    setActionLoading(true);
+    try {
+      await followApi.sendRequest(user.uid, uid);
+      setRelationship('requested');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+  const handleCancelRequest = async () => {
+    setActionLoading(true);
+    try {
+      await followApi.cancelRequest(user.uid, uid);
+      setRelationship('none');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+  const handleUnfollow = async () => {
+    setActionLoading(true);
+    try {
+      await followApi.unfollow(user.uid, uid);
+      setRelationship('none');
+      setFollowerCount((c) => Math.max(c - 1, 0));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRequestSocial = async () => {
+    setActionLoading(true);
+    try {
+      await socialLinksApi.requestReveal(user.uid, uid, availablePlatforms);
+      setRevealStatus('pending');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReport = async () => {
+    await reportsApi.create({ reportableType: 'user', reportableId: uid, reason: 'other', details: undefined }, user);
+    setReported(true);
+    setMenuOpen(false);
+  };
+
+  const handleBlock = async () => {
+    setActionLoading(true);
+    try {
+      await apiClient.post(`/users/${uid}/block`);
+      setBlocked(true);
+      setRelationship('none');
+      setMenuOpen(false);
+      navigate('/');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-cream">
@@ -92,38 +180,76 @@ export default function PublicProfile() {
       <div className="relative h-40 sm:h-56 bg-gradient-to-r from-ocean via-teal to-sky overflow-hidden mt-16">
         {profile.coverURL && <img src={profile.coverURL} alt="Cover" className="w-full h-full object-cover" />}
         <div className="absolute inset-0 bg-gradient-to-t from-charcoal/40 to-transparent" />
+
+        <div className="absolute top-4 right-4">
+          <div className="relative">
+            <button onClick={() => setMenuOpen(!menuOpen)} className="p-2 bg-charcoal/70 backdrop-blur text-white rounded-xl hover:bg-charcoal/90 transition-colors">
+              <MoreVertical className="w-4 h-4" />
+            </button>
+            {menuOpen && (
+              <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-xl border border-sand py-1 min-w-[160px] z-10">
+                <button onClick={handleReport} disabled={reported}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-charcoal hover:bg-sand transition-colors disabled:opacity-50">
+                  <Flag className="w-4 h-4" /> {reported ? 'Reported' : 'Report profile'}
+                </button>
+                <button onClick={handleBlock} disabled={blocked || actionLoading}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-coral hover:bg-sand transition-colors disabled:opacity-50">
+                  <Ban className="w-4 h-4" /> Block user
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6">
-        <div className="relative -mt-12 sm:-mt-14 mb-6">
+        <div className="relative -mt-12 sm:-mt-14 flex items-end justify-between mb-6">
           <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-4 border-cream overflow-hidden bg-gradient-to-br from-ocean to-teal flex items-center justify-center shadow-lg">
             {profile.photoURL
               ? <img src={profile.photoURL} alt={displayName} className="w-full h-full object-cover" />
               : <span className="text-white font-heading font-bold text-xl">{initials}</span>
             }
           </div>
+
+          {relationship === 'following' ? (
+            <button onClick={handleUnfollow} disabled={actionLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-sand rounded-xl text-sm font-semibold text-charcoal hover:bg-sand transition-colors disabled:opacity-60">
+              <UserCheck className="w-4 h-4 text-teal" /> Following
+            </button>
+          ) : relationship === 'requested' ? (
+            <button onClick={handleCancelRequest} disabled={actionLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-sand rounded-xl text-sm font-semibold text-charcoal hover:bg-sand transition-colors disabled:opacity-60">
+              <Clock className="w-4 h-4 text-charcoal/50" /> Requested
+            </button>
+          ) : (
+            <button onClick={handleFollow} disabled={actionLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-ocean to-teal text-white rounded-xl text-sm font-semibold hover:shadow-lg transition-all disabled:opacity-60">
+              <UserPlus className="w-4 h-4" /> Follow
+            </button>
+          )}
         </div>
 
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-1">
             <h1 className="font-heading text-2xl font-bold text-charcoal">{displayName}</h1>
-            {profile.isVerified && <BadgeCheck className="w-5 h-5 text-teal" />}
+            {profile.isVerified && <BadgeCheck className="w-5 h-5 text-teal" title="Verified account" />}
+            {profile.photoVerified && <ShieldCheck className="w-5 h-5 text-ocean" title="Photo verified live" />}
           </div>
+          {profile.username && <p className="text-sm text-charcoal/50 mb-2">@{profile.username}</p>}
           {profile.bio && <p className="text-sm text-charcoal/70 leading-relaxed max-w-xl mb-3">{profile.bio}</p>}
-          <div className="flex flex-wrap gap-4 text-sm text-charcoal/60">
-            {profile.city && <span className="flex items-center gap-1"><MapPin className="w-4 h-4 text-coral" />{profile.city}</span>}
+          <div className="flex flex-wrap gap-4 text-sm text-charcoal/60 mb-3">
+            {profile.city && (profile.privacy?.cityVisibility !== 'private') && (
+              <span className="flex items-center gap-1"><MapPin className="w-4 h-4 text-coral" />{profile.city}</span>
+            )}
             {profile.createdAt && (
               <span className="flex items-center gap-1">
                 <Calendar className="w-4 h-4 text-ocean" />
                 Member since {moment(profile.createdAt.toDate ? profile.createdAt.toDate() : profile.createdAt).format('MMM YYYY')}
               </span>
             )}
+            <span className="flex items-center gap-1"><Users className="w-4 h-4 text-teal" />{followerCount} followers</span>
           </div>
-        </div>
-
-        {profile.interests?.length > 0 && (
-          <div className="mb-8">
-            <h3 className="font-heading font-semibold text-charcoal mb-3">Interests</h3>
+          {profile.interests?.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {profile.interests.map(i => (
                 <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-sand text-sm text-charcoal font-medium">
@@ -131,6 +257,41 @@ export default function PublicProfile() {
                 </span>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* Social links — never shown until an approved reveal grant exists */}
+        {availablePlatforms.length > 0 && (
+          <div className="bg-white rounded-2xl p-5 border border-sand mb-6">
+            <h3 className="font-heading font-semibold text-charcoal mb-3 flex items-center gap-2">
+              <Lock className="w-4 h-4 text-charcoal/40" /> Social links
+            </h3>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {availablePlatforms.map((p) => {
+                const Icon = PLATFORM_ICONS[p];
+                const url = socialLinks[p];
+                return url ? (
+                  <a key={p} href={url} target="_blank" rel="noopener noreferrer nofollow"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-ocean/10 text-ocean text-xs font-medium hover:bg-ocean/20 transition-colors">
+                    <Icon className="w-3.5 h-3.5" /> {PLATFORM_LABELS[p]}
+                  </a>
+                ) : (
+                  <span key={p} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sand text-charcoal/50 text-xs font-medium">
+                    <Icon className="w-3.5 h-3.5" /> {PLATFORM_LABELS[p]}
+                  </span>
+                );
+              })}
+            </div>
+            {revealStatus === 'accepted' ? (
+              <p className="text-xs text-charcoal/50">Approved: {grantedPlatforms.map((p) => PLATFORM_LABELS[p]).join(', ') || 'none yet'}</p>
+            ) : revealStatus === 'pending' ? (
+              <p className="text-xs text-charcoal/50 flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> Request sent — waiting for approval</p>
+            ) : (
+              <button onClick={handleRequestSocial} disabled={actionLoading}
+                className="text-sm font-medium text-ocean hover:text-teal transition-colors disabled:opacity-60">
+                Request social links
+              </button>
+            )}
           </div>
         )}
 

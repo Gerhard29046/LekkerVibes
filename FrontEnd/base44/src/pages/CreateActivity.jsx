@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { eventsApi, eventCategoriesApi } from '@/api/eventsApi';
 import { communitiesApi } from '@/api/communitiesApi';
 import { uploadsApi } from '@/api/uploadsApi';
+import { activityApi } from '@/api/activityApi';
 import { useAuth } from '@/lib/AuthContext';
 import { useLocation } from '@/hooks/useLocation.jsx';
 import { useNavigate, Link } from 'react-router-dom';
@@ -67,6 +68,7 @@ export default function CreateActivity() {
         mood: form.mood || null,
       };
       const created = await eventsApi.create(data, user);
+      activityApi.record(user.uid, 'created_event', { eventId: created.id, eventTitle: form.title }).catch(() => {});
       navigate(`/activity/${created.id}`);
     } finally {
       setSaving(false);

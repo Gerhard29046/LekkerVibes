@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Star, Bookmark, CalendarPlus, ExternalLink, Info, Clock } from 'lucide-react';
+import { MapPin, Star, Bookmark, CalendarPlus, ExternalLink, Info, Clock, CheckCircle2 } from 'lucide-react';
 import { placePhotoUrl } from '@/api/discoverApi';
 import { savedApi, plansApi } from '@/api/savedApi';
+import { visitedPlacesApi } from '@/api/visitedPlacesApi';
+import { activityApi } from '@/api/activityApi';
 import { useAuth } from '@/lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -13,11 +15,13 @@ export default function DiscoverPlaceCard({ place }) {
   const navigate = useNavigate();
   const [saved, setSaved] = useState(false);
   const [planned, setPlanned] = useState(false);
+  const [visited, setVisited] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     savedApi.has(user.uid, place.placeId).then(setSaved);
     plansApi.has(user.uid, place.placeId).then(setPlanned);
+    visitedPlacesApi.has(user.uid, place.placeId).then(setVisited);
   }, [user, place.placeId]);
 
   const imageSrc = placePhotoUrl(place.photoUrl) ||
@@ -41,6 +45,7 @@ export default function DiscoverPlaceCard({ place }) {
       await savedApi.remove(user.uid, place.placeId);
     } else {
       await savedApi.add(user.uid, place.placeId, item);
+      activityApi.record(user.uid, 'saved_place', { placeName: place.name }).catch(() => {});
     }
     setSaved(!saved);
   };
@@ -57,6 +62,24 @@ export default function DiscoverPlaceCard({ place }) {
       await plansApi.add(user.uid, place.placeId, item);
     }
     setPlanned(!planned);
+  };
+
+  // "Mark as visited" is a separate, explicit action from Save/Add to
+  // plans — per the product's privacy model, a visit is only ever recorded
+  // from a deliberate user confirmation, never inferred (see
+  // Firebase/firestore.rules' `source` allow-list on visitedPlaces).
+  const handleMarkVisited = async () => {
+    if (!requireAuth()) return;
+    if (visited) {
+      await visitedPlacesApi.unmark(user.uid, place.placeId);
+      setVisited(false);
+      return;
+    }
+    await visitedPlacesApi.markVisited(user.uid, {
+      placeId: place.placeId, placeName: place.name, broadArea: place.address, source: 'user_confirmed',
+    });
+    activityApi.record(user.uid, 'visited_place', { placeName: place.name }).catch(() => {});
+    setVisited(true);
   };
 
   // Never invent a website — fall back to the Google Maps listing itself.
@@ -127,6 +150,12 @@ export default function DiscoverPlaceCard({ place }) {
             <ExternalLink className="w-3.5 h-3.5" /> Visit website
           </a>
         </div>
+        <button onClick={handleMarkVisited}
+          className={`mt-2 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+            visited ? 'bg-leaf/10 text-leaf' : 'text-charcoal/50 hover:bg-sand'
+          }`}>
+          <CheckCircle2 className="w-3.5 h-3.5" /> {visited ? "You've visited this" : 'Mark as visited'}
+        </button>
       </div>
     </div>
   );

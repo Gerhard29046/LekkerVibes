@@ -2,6 +2,41 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Shared helpers. Safe to call from any match block below — they only
+    // reference fixed path segments / request.auth, never resource.data, so
+    // they stay invariant across a query's whole result set (the lesson
+    // from the events-list bug: a get()/exists() whose path depends on
+    // resource.data breaks Firestore's ability to prove a list query safe;
+    // one whose path depends only on request.auth.uid or an outer path
+    // variable does not).
+    function isFollowerOf(ownerUid) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(ownerUid)/followers/$(request.auth.uid));
+    }
+    function isBlockedBy(ownerUid) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(ownerUid)/blocks/$(request.auth.uid));
+    }
+    // visibility: 'everyone' | 'followers' | 'private', on the resource
+    // itself. Owner always sees their own; the constant (per-query) parts
+    // short-circuit before ever touching resource.data.
+    function visibleTo(ownerUid) {
+      return request.auth != null && request.auth.uid == ownerUid
+        || resource.data.visibility == 'everyone'
+        || (resource.data.visibility == 'followers' && isFollowerOf(ownerUid));
+    }
+    // Followers/following LIST visibility is itself privacy-gated by the
+    // owner's own settings (a get() on the fixed ownerUid path, invariant
+    // across the query — safe, same reasoning as above).
+    function followersReadable(ownerUid) {
+      return get(/databases/$(database)/documents/users/$(ownerUid)).data.privacy.followersVisibility == 'everyone'
+        || (get(/databases/$(database)/documents/users/$(ownerUid)).data.privacy.followersVisibility == 'followers' && isFollowerOf(ownerUid));
+    }
+    function followingReadable(ownerUid) {
+      return get(/databases/$(database)/documents/users/$(ownerUid)).data.privacy.followingVisibility == 'everyone'
+        || (get(/databases/$(database)/documents/users/$(ownerUid)).data.privacy.followingVisibility == 'followers' && isFollowerOf(ownerUid));
+    }
+
     // ---------------------------------------------------------------------
     // Users
     // ---------------------------------------------------------------------
@@ -10,6 +45,9 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == uid;
       // A user can update their own doc but can't self-promote `role` or
       // flip `isVerified` — both are Worker-only (see Worker/src/routes/).
+      // `photoVerified` IS self-settable — it only means "this photo was
+      // captured live via the device camera", a UX signal, not a trust
+      // claim like `isVerified` (which stays admin/Worker-only).
       allow update: if request.auth != null && request.auth.uid == uid
                     && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isVerified']);
       allow delete: if false;
@@ -29,9 +67,179 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == uid;
       }
 
-      // Private block list — self-only, never publicly readable.
+      // Private block list — self-only, never publicly readable. Blocking
+      // itself (with its cross-user cascade: revoke follow relationships,
+      // pending requests, social-access grants) is a Worker operation — see
+      // Worker/src/routes/relationships.ts — but the block record's owner
+      // still writes it directly here as part of that flow authenticating
+      // normally, since the Worker acts on the caller's stated intent, not
+      // as a bypass for this specific doc.
       match /blocks/{blockedUid} {
         allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // ---------------------------------------------------------------
+      // Follow relationships. `followers`/`following` docs are only ever
+      // created as the direct result of an accepted followRequests doc
+      // (checked via get() below) or by the trusted Worker (which bypasses
+      // rules entirely) — never a bare self-write. Either side of the
+      // relationship may delete their own copy (owner removing a follower,
+      // or the follower unfollowing) — two independent, individually
+      // authorized deletes rather than one atomic operation, which is an
+      // acceptable small consistency risk (same tradeoff as elsewhere in
+      // this file) since nothing security-sensitive depends on both
+      // succeeding together.
+      // ---------------------------------------------------------------
+      match /followers/{followerUid} {
+        allow read: if (request.auth != null && request.auth.uid == uid)
+                    || followersReadable(uid);
+        allow create: if request.auth != null && request.auth.uid == followerUid
+                      && get(/databases/$(database)/documents/followRequests/$(followerUid + '_' + uid)).data.status == 'accepted';
+        allow update: if false;
+        allow delete: if request.auth != null && (request.auth.uid == uid || request.auth.uid == followerUid);
+      }
+      match /following/{targetUid} {
+        allow read: if (request.auth != null && request.auth.uid == uid)
+                    || followingReadable(uid);
+        allow create: if request.auth != null && request.auth.uid == uid
+                      && get(/databases/$(database)/documents/followRequests/$(uid + '_' + targetUid)).data.status == 'accepted';
+        allow update: if false;
+        allow delete: if request.auth != null && (request.auth.uid == uid || request.auth.uid == targetUid);
+      }
+
+      // A user's own visited-places log. Default visibility is enforced by
+      // the client always writing 'private' unless the user explicitly
+      // changes it (see savedApi-style pattern) — the rule itself only
+      // gates *read*, not what visibility value may be chosen, since any
+      // of the three values is a legitimate user choice.
+      match /visitedPlaces/{placeId} {
+        allow read: if visibleTo(uid);
+        allow create, update: if request.auth != null && request.auth.uid == uid
+                              && request.resource.data.source in ['user_confirmed', 'event_attendance'];
+        allow delete: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // Recent-activity feed entries — self-authored at the moment of the
+      // underlying action (e.g. right after joining a community), each
+      // carrying its own visibility.
+      match /activity/{activityId} {
+        allow read: if visibleTo(uid);
+        allow create: if request.auth != null && request.auth.uid == uid
+                      && request.resource.data.visibility in ['everyone', 'followers', 'private'];
+        allow update: if false;
+        allow delete: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // In-app notifications. Most are Worker-created (bypasses rules) as
+      // part of an atomic operation (follow accepted, reveal approved) —
+      // the three types below are the ones that originate purely
+      // client-side (the *other* party creating their own request/doc), so
+      // the client needs to be able to write the corresponding
+      // notification for the recipient directly. Worst case a malicious
+      // client spams harmless, deletable notification rows of these exact
+      // types — no relationship state, grant, or privileged field is
+      // reachable through this path.
+      match /notifications/{notificationId} {
+        allow read, update, delete: if request.auth != null && request.auth.uid == uid;
+        allow create: if request.auth != null
+                      && request.resource.data.fromUid == request.auth.uid
+                      && request.resource.data.type in ['follow_request', 'social_reveal_request', 'social_access_revoked'];
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // Usernames — a reservation collection purely for uniqueness: Firestore
+    // `create` inherently fails if the doc already exists, which is all the
+    // uniqueness guarantee this needs (no transaction/Worker required).
+    // ---------------------------------------------------------------------
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid
+                    && username.matches('^[a-z0-9_]{3,20}$');
+      allow update: if false;
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+
+    // ---------------------------------------------------------------------
+    // Follow requests. Only 'declined'/'cancelled'/re-'pending' transitions
+    // are plain client updates — setting 'accepted' goes through the Worker
+    // (Worker/src/routes/relationships.ts) since it must atomically also
+    // create both follower/following docs and a notification; allowing a
+    // bare client update straight to 'accepted' here would let the owner
+    // "accept" without ever actually creating the relationship records.
+    // ---------------------------------------------------------------------
+    match /followRequests/{requestId} {
+      allow read: if request.auth != null
+                  && (request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid);
+      allow create: if request.auth != null
+                    && request.resource.data.fromUid == request.auth.uid
+                    && request.resource.data.toUid != request.auth.uid
+                    && request.resource.data.status == 'pending'
+                    && requestId == request.auth.uid + '_' + request.resource.data.toUid
+                    && !isBlockedBy(request.resource.data.toUid);
+      allow update: if request.auth != null
+                    && ((request.auth.uid == resource.data.toUid
+                         && request.resource.data.status == 'declined' && resource.data.status == 'pending')
+                        || (request.auth.uid == resource.data.fromUid
+                            && request.resource.data.status in ['cancelled', 'pending'] && resource.data.status != 'accepted'));
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Social links — kept out of the publicly-readable users/{uid} doc
+    // entirely (Firestore has no field-level read security within one
+    // document). Each platform is its OWN document specifically so a grant
+    // can name individual platforms and have that be genuinely enforced by
+    // rules, not just hidden in the UI.
+    // ---------------------------------------------------------------------
+    function isValidPlatformUrl(platform, url) {
+      return url is string && url.size() < 500
+        && (
+          (platform == 'instagram' && url.matches('^https://(www[.])?instagram[.]com/.*$'))
+          || (platform == 'facebook' && url.matches('^https://(www[.])?facebook[.]com/.*$'))
+          || (platform == 'strava' && url.matches('^https://(www[.])?strava[.]com/.*$'))
+          || (platform == 'website' && url.matches('^https://.+$'))
+        );
+    }
+    match /userSocialLinks/{uid} {
+      match /platforms/{platform} {
+        allow read: if request.auth != null
+                    && (request.auth.uid == uid
+                        || (exists(/databases/$(database)/documents/socialAccess/$(uid)/grants/$(request.auth.uid))
+                            && platform in get(/databases/$(database)/documents/socialAccess/$(uid)/grants/$(request.auth.uid)).data.platforms));
+        allow write: if request.auth != null && request.auth.uid == uid
+                     && isValidPlatformUrl(platform, request.resource.data.url);
+        allow delete: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // Social-link reveal requests — same 'accepted' constraint as follow
+    // requests: only the Worker can approve, since approval must also
+    // create the socialAccess grant + a notification atomically.
+    // ---------------------------------------------------------------------
+    match /socialRevealRequests/{requestId} {
+      allow read: if request.auth != null
+                  && (request.auth.uid == resource.data.requesterUid || request.auth.uid == resource.data.ownerUid);
+      allow create: if request.auth != null
+                    && request.resource.data.requesterUid == request.auth.uid
+                    && request.resource.data.ownerUid != request.auth.uid
+                    && request.resource.data.status == 'pending'
+                    && requestId == request.auth.uid + '_' + request.resource.data.ownerUid
+                    && !isBlockedBy(request.resource.data.ownerUid);
+      allow update: if request.auth != null && request.auth.uid == resource.data.ownerUid
+                    && request.resource.data.status == 'declined' && resource.data.status == 'pending';
+      allow delete: if false;
+    }
+
+    // Grants are Worker-only to create (part of the atomic reveal-accept),
+    // but the owner can revoke one directly at any time — a single-document
+    // delete needs no cross-document consistency.
+    match /socialAccess/{ownerUid} {
+      match /grants/{viewerUid} {
+        allow read: if request.auth != null && (request.auth.uid == ownerUid || request.auth.uid == viewerUid);
+        allow create, update: if false;
+        allow delete: if request.auth != null && request.auth.uid == ownerUid;
       }
     }
 

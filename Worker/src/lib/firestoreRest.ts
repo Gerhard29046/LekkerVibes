@@ -147,3 +147,38 @@ export async function deleteDocument(env: Env, path: string): Promise<void> {
     throw new Error(`Firestore delete failed: ${response.status} ${await response.text()}`);
   }
 }
+
+type Write =
+  | { type: 'set'; path: string; fields: Record<string, unknown> }
+  | { type: 'update'; path: string; fields: Record<string, unknown>; updateMask: string[] }
+  | { type: 'delete'; path: string };
+
+// Atomic multi-document commit, authenticated as the service account — this
+// is the tool for exactly the class of bug documented in documentation/
+// DECISIONS.md (2026-07-16, community creation): a plain client writeBatch
+// can't have one write's rule check see a sibling write's effect from
+// earlier in the same batch, so anything needing several documents to
+// change together and pass rules mid-flight has to go through here instead,
+// where there are no rules to satisfy in the first place.
+export async function commitWrites(env: Env, writes: Write[]): Promise<void> {
+  const docRoot = `projects/${env.GCP_PROJECT_ID}/databases/(default)/documents`;
+  const body = {
+    writes: writes.map((w) => {
+      if (w.type === 'delete') {
+        return { delete: `${docRoot}/${w.path}` };
+      }
+      const update = { name: `${docRoot}/${w.path}`, fields: toFirestoreFields(w.fields) };
+      if (w.type === 'update') {
+        return { update, updateMask: { fieldPaths: w.updateMask } };
+      }
+      return { update };
+    }),
+  };
+  const response = await authedFetch(env, `${baseUrl(env)}:commit`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Firestore commit failed: ${response.status} ${await response.text()}`);
+  }
+}

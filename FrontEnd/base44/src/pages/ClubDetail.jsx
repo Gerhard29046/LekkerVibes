@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { communitiesApi } from '@/api/communitiesApi';
 import { eventsApi } from '@/api/eventsApi';
 import { reportsApi } from '@/api/reportsApi';
+import { activityApi } from '@/api/activityApi';
 import { useAuth } from '@/lib/AuthContext';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
@@ -83,6 +84,7 @@ export default function ClubDetail() {
     setJoinLoading(true);
     try {
       await communitiesApi.join(club.id, user);
+      activityApi.record(user.uid, 'joined_community', { communityId: club.id, communityName: club.name }).catch(() => {});
       load();
     } finally {
       setJoinLoading(false);

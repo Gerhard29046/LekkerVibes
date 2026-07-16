@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { eventsApi } from '@/api/eventsApi';
 import { reportsApi } from '@/api/reportsApi';
 import { savedApi } from '@/api/savedApi';
+import { activityApi } from '@/api/activityApi';
 import { useAuth } from '@/lib/AuthContext';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
@@ -91,6 +92,9 @@ export default function ActivityDetail() {
     setActionLoading(true);
     try {
       await eventsApi.rsvp(activity.id, user, status);
+      if (status === 'going') {
+        activityApi.record(user.uid, 'going_event', { eventId: activity.id, eventTitle: activity.title }).catch(() => {});
+      }
       load();
     } finally {
       setActionLoading(false);

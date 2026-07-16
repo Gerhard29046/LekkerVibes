@@ -5,24 +5,49 @@ import {
   updatePassword,
   sendPasswordResetEmail,
 } from 'firebase/auth';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebaseClient';
-import { profileApi } from '@/api/profileApi';
+import { profileApi, DEFAULT_PRIVACY } from '@/api/profileApi';
+import { followApi } from '@/api/followApi';
+import { socialLinksApi } from '@/api/socialLinksApi';
 import { useAuth } from '@/lib/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import Navbar from '@/components/landing/Navbar';
 import {
-  ArrowLeft, Bell, Shield, Lock, LogOut, Trash2, Loader2,
-  CheckCircle2, AlertCircle, ExternalLink,
+  ArrowLeft, Bell, Shield, Lock, LogOut, Trash2, Loader2, UserMinus, UserX,
+  CheckCircle2, AlertCircle, ExternalLink, Check, X as XIcon, Users,
 } from 'lucide-react';
+
+const AUDIENCE_OPTIONS = [
+  { value: 'everyone', label: 'Everyone' },
+  { value: 'followers', label: 'Approved followers' },
+  { value: 'private', label: 'Only me' },
+];
+
+const PRIVACY_FIELDS = [
+  { key: 'cityVisibility', label: 'General city' },
+  { key: 'communitiesVisibility', label: 'Communities joined' },
+  { key: 'eventsVisibility', label: 'Events joined' },
+  { key: 'eventsOrganisedVisibility', label: 'Events organised' },
+  { key: 'savedVisibility', label: 'Saved places' },
+  { key: 'visitedVisibility', label: 'Places visited' },
+  { key: 'activityVisibility', label: 'Recent activity' },
+  { key: 'photosVisibility', label: 'Photos' },
+  { key: 'followersVisibility', label: 'Follower list' },
+  { key: 'followingVisibility', label: 'Following list' },
+  { key: 'workVisibility', label: 'Work' },
+  { key: 'educationVisibility', label: 'Education' },
+  { key: 'languagesVisibility', label: 'Languages' },
+];
 
 export default function Settings() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [notificationPrefs, setNotificationPrefs] = useState({ email: true, push: true, communityUpdates: true });
-  const [privacy, setPrivacy] = useState({ showEmail: false });
+  const [privacy, setPrivacy] = useState(DEFAULT_PRIVACY);
   const [savingPrefs, setSavingPrefs] = useState(false);
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
 
   const isPasswordUser = user?.providerData.some(p => p.providerId === 'password');
   const isGoogleOnly = !isPasswordUser && user?.providerData.some(p => p.providerId === 'google.com');
@@ -32,7 +57,7 @@ export default function Settings() {
     profileApi.get(user.uid).then((data) => {
       setProfile(data);
       if (data?.notificationPrefs) setNotificationPrefs(data.notificationPrefs);
-      if (data?.privacy) setPrivacy(data.privacy);
+      if (data?.privacy) setPrivacy({ ...DEFAULT_PRIVACY, ...data.privacy });
     });
   }, [user]);
 
@@ -46,11 +71,11 @@ export default function Settings() {
   };
 
   const handleSavePrivacy = async () => {
-    setSavingPrefs(true);
+    setSavingPrivacy(true);
     try {
       await profileApi.updatePrivacy(user.uid, privacy);
     } finally {
-      setSavingPrefs(false);
+      setSavingPrivacy(false);
     }
   };
 
@@ -68,17 +93,19 @@ export default function Settings() {
         <h1 className="font-heading text-2xl font-bold text-charcoal mb-6">Settings</h1>
 
         <div className="space-y-6">
-          {/* Profile settings */}
           <Section title="Profile" icon={CheckCircle2}>
             <p className="text-sm text-charcoal/60 mb-3">
-              Display name, bio, city, photos and interests are edited from your profile page.
+              Display name, bio, city, photos, social links and interests are edited from your profile page.
             </p>
             <Link to="/profile" className="text-sm font-medium text-ocean hover:text-teal transition-colors">
               Go to profile →
             </Link>
           </Section>
 
-          {/* Notifications */}
+          <FollowRequestsSection user={user} />
+
+          <SocialRevealSection user={user} />
+
           <Section title="Notifications" icon={Bell}>
             <div className="space-y-3">
               {[
@@ -103,34 +130,42 @@ export default function Settings() {
             </button>
           </Section>
 
-          {/* Privacy */}
           <Section title="Privacy" icon={Shield}>
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={!!privacy.showEmail}
-                onChange={e => setPrivacy(p => ({ ...p, showEmail: e.target.checked }))}
-                className="w-4 h-4 rounded accent-ocean"
-              />
-              <span className="text-sm text-charcoal">Show my email on my public profile</span>
-            </label>
-            <button onClick={handleSavePrivacy} disabled={savingPrefs}
+            <div className="space-y-3">
+              {PRIVACY_FIELDS.map((field) => (
+                <div key={field.key} className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-charcoal">{field.label}</span>
+                  <select
+                    value={privacy[field.key] || 'everyone'}
+                    onChange={(e) => setPrivacy((p) => ({ ...p, [field.key]: e.target.value }))}
+                    className="px-3 py-1.5 rounded-lg border border-border bg-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-ocean/30"
+                  >
+                    {AUDIENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+              ))}
+              <label className="flex items-center gap-3 cursor-pointer pt-2 border-t border-sand">
+                <input type="checkbox" checked={privacy.activityFeedEnabled !== false}
+                  onChange={(e) => setPrivacy((p) => ({ ...p, activityFeedEnabled: e.target.checked }))}
+                  className="w-4 h-4 rounded accent-ocean" />
+                <span className="text-sm text-charcoal">Record my recent activity at all</span>
+              </label>
+            </div>
+            <button onClick={handleSavePrivacy} disabled={savingPrivacy}
               className="mt-4 px-4 py-2 bg-ocean/10 text-ocean text-sm font-semibold rounded-lg hover:bg-ocean/20 transition-colors disabled:opacity-60">
-              {savingPrefs ? 'Saving...' : 'Save privacy settings'}
+              {savingPrivacy ? 'Saving...' : 'Save privacy settings'}
             </button>
           </Section>
 
-          {/* Safety */}
           <Section title="Safety" icon={AlertCircle}>
             <p className="text-sm text-charcoal/60 mb-3">
-              Read our safety guidelines, and report or block anyone who makes you uncomfortable.
+              Read our safety guidelines, and report or block anyone who makes you uncomfortable from their profile.
             </p>
             <Link to="/safety" className="flex items-center gap-1.5 text-sm font-medium text-ocean hover:text-teal transition-colors w-fit">
               Visit the Safety Centre <ExternalLink className="w-3.5 h-3.5" />
             </Link>
           </Section>
 
-          {/* Password */}
           <Section title="Password" icon={Lock}>
             {isGoogleOnly ? (
               <p className="text-sm text-charcoal/60">
@@ -141,7 +176,6 @@ export default function Settings() {
             )}
           </Section>
 
-          {/* Account */}
           <Section title="Account" icon={LogOut}>
             <button onClick={handleSignOut}
               className="w-full mb-3 flex items-center justify-center gap-2 py-2.5 bg-sand text-charcoal text-sm font-semibold rounded-xl hover:bg-sand/80 transition-colors">
@@ -166,11 +200,195 @@ function Section({ title, icon: Icon, children }) {
   );
 }
 
+function FollowRequestsSection({ user }) {
+  const [incoming, setIncoming] = useState([]);
+  const [outgoing, setOutgoing] = useState([]);
+  const [followers, setFollowers] = useState([]);
+  const [following, setFollowing] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+
+  const load = async () => {
+    const [inc, out, fol, fing] = await Promise.all([
+      followApi.listIncomingRequests(user.uid),
+      followApi.listOutgoingRequests(user.uid),
+      followApi.listFollowers(user.uid),
+      followApi.listFollowing(user.uid),
+    ]);
+    setIncoming(inc);
+    setOutgoing(out);
+    setFollowers(fol);
+    setFollowing(fing);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [user.uid]);
+
+  const withBusy = (id, fn) => async () => {
+    setBusyId(id);
+    try { await fn(); await load(); } finally { setBusyId(null); }
+  };
+
+  if (loading) return <Section title="Follow requests" icon={Users}><Loader2 className="w-4 h-4 animate-spin text-charcoal/40" /></Section>;
+
+  return (
+    <Section title="Follow requests & connections" icon={Users}>
+      <div className="space-y-5">
+        <div>
+          <h4 className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide mb-2">Requests received ({incoming.length})</h4>
+          {incoming.length === 0 && <p className="text-sm text-charcoal/40">None right now.</p>}
+          {incoming.map((r) => (
+            <div key={r.fromUid} className="flex items-center justify-between py-1.5">
+              <Link to={`/u/${r.fromUid}`} className="text-sm text-charcoal hover:text-ocean transition-colors">{r.fromUid}</Link>
+              <div className="flex gap-1.5">
+                <button disabled={busyId === r.fromUid} onClick={withBusy(r.fromUid, () => followApi.acceptRequest(`${r.fromUid}_${user.uid}`))}
+                  className="p-1.5 bg-teal/10 text-teal rounded-lg hover:bg-teal/20 transition-colors disabled:opacity-50"><Check className="w-3.5 h-3.5" /></button>
+                <button disabled={busyId === r.fromUid} onClick={withBusy(r.fromUid, () => followApi.declineRequest(r.fromUid, user.uid))}
+                  className="p-1.5 bg-coral/10 text-coral rounded-lg hover:bg-coral/20 transition-colors disabled:opacity-50"><XIcon className="w-3.5 h-3.5" /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <h4 className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide mb-2">Requests sent ({outgoing.length})</h4>
+          {outgoing.length === 0 && <p className="text-sm text-charcoal/40">None right now.</p>}
+          {outgoing.map((r) => (
+            <div key={r.toUid} className="flex items-center justify-between py-1.5">
+              <Link to={`/u/${r.toUid}`} className="text-sm text-charcoal hover:text-ocean transition-colors">{r.toUid}</Link>
+              <button disabled={busyId === r.toUid} onClick={withBusy(r.toUid, () => followApi.cancelRequest(user.uid, r.toUid))}
+                className="text-xs font-medium text-charcoal/50 hover:text-coral transition-colors disabled:opacity-50">Cancel</button>
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <h4 className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide mb-2">Followers ({followers.length})</h4>
+          {followers.length === 0 && <p className="text-sm text-charcoal/40">No followers yet.</p>}
+          {followers.map((f) => (
+            <div key={f.uid} className="flex items-center justify-between py-1.5">
+              <Link to={`/u/${f.uid}`} className="text-sm text-charcoal hover:text-ocean transition-colors">{f.uid}</Link>
+              <button disabled={busyId === f.uid} onClick={withBusy(f.uid, () => followApi.removeFollower(user.uid, f.uid))}
+                className="flex items-center gap-1 text-xs font-medium text-charcoal/50 hover:text-coral transition-colors disabled:opacity-50">
+                <UserMinus className="w-3.5 h-3.5" /> Remove
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <h4 className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide mb-2">Following ({following.length})</h4>
+          {following.length === 0 && <p className="text-sm text-charcoal/40">Not following anyone yet.</p>}
+          {following.map((f) => (
+            <div key={f.uid} className="flex items-center justify-between py-1.5">
+              <Link to={`/u/${f.uid}`} className="text-sm text-charcoal hover:text-ocean transition-colors">{f.uid}</Link>
+              <button disabled={busyId === f.uid} onClick={withBusy(f.uid, () => followApi.unfollow(user.uid, f.uid))}
+                className="flex items-center gap-1 text-xs font-medium text-charcoal/50 hover:text-coral transition-colors disabled:opacity-50">
+                <UserX className="w-3.5 h-3.5" /> Unfollow
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function SocialRevealSection({ user }) {
+  const [requests, setRequests] = useState([]);
+  const [approving, setApproving] = useState(null); // requestId being edited
+  const [selectedPlatforms, setSelectedPlatforms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+
+  const load = async () => {
+    const snap = await getDocs(query(
+      collection(db, 'socialRevealRequests'),
+      where('ownerUid', '==', user.uid),
+      where('status', '==', 'pending'),
+    ));
+    setRequests(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [user.uid]);
+
+  const startApproving = (req) => {
+    setApproving(req.id);
+    setSelectedPlatforms(req.requestedPlatforms || []);
+  };
+
+  const togglePlatform = (p) => {
+    setSelectedPlatforms((cur) => cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]);
+  };
+
+  const confirmApprove = async () => {
+    setBusyId(approving);
+    try {
+      await socialLinksApi.acceptReveal(approving, selectedPlatforms);
+      setApproving(null);
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const decline = async (req) => {
+    setBusyId(req.id);
+    try {
+      await socialLinksApi.declineReveal(req.requesterUid, req.ownerUid);
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (loading) return <Section title="Social-link requests" icon={Lock}><Loader2 className="w-4 h-4 animate-spin text-charcoal/40" /></Section>;
+
+  return (
+    <Section title="Social-link requests" icon={Lock}>
+      {requests.length === 0 && <p className="text-sm text-charcoal/40">No pending requests.</p>}
+      <div className="space-y-3">
+        {requests.map((req) => (
+          <div key={req.id} className="border border-sand rounded-xl p-3">
+            <div className="flex items-center justify-between mb-2">
+              <Link to={`/u/${req.requesterUid}`} className="text-sm font-medium text-charcoal hover:text-ocean transition-colors">{req.requesterUid}</Link>
+              {approving !== req.id && (
+                <div className="flex gap-1.5">
+                  <button onClick={() => startApproving(req)} className="px-2.5 py-1 bg-teal/10 text-teal rounded-lg text-xs font-medium hover:bg-teal/20 transition-colors">Approve</button>
+                  <button disabled={busyId === req.id} onClick={() => decline(req)} className="px-2.5 py-1 bg-coral/10 text-coral rounded-lg text-xs font-medium hover:bg-coral/20 transition-colors disabled:opacity-50">Decline</button>
+                </div>
+              )}
+            </div>
+            {approving === req.id && (
+              <div className="space-y-2">
+                {(req.requestedPlatforms || []).map((p) => (
+                  <label key={p} className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={selectedPlatforms.includes(p)} onChange={() => togglePlatform(p)} className="w-4 h-4 rounded accent-ocean" />
+                    <span className="text-sm text-charcoal capitalize">{p}</span>
+                  </label>
+                ))}
+                <div className="flex gap-2 pt-2">
+                  <button onClick={() => setApproving(null)} className="flex-1 py-1.5 rounded-lg border border-border text-xs font-medium text-charcoal">Cancel</button>
+                  <button onClick={confirmApprove} disabled={busyId === req.id || selectedPlatforms.length === 0}
+                    className="flex-1 py-1.5 rounded-lg bg-ocean text-white text-xs font-semibold disabled:opacity-50">
+                    {busyId === req.id ? 'Approving...' : 'Confirm approval'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
 function ChangePasswordForm({ user }) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [status, setStatus] = useState(null); // { type: 'success'|'error', message }
+  const [status, setStatus] = useState(null);
   const [saving, setSaving] = useState(false);
   const [resetSent, setResetSent] = useState(false);
 
