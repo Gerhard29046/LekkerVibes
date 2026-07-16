@@ -16,13 +16,17 @@ import moment from 'moment';
 // this pass's rules (documented as a known limitation).
 export default function PublicProfile() {
   const { uid } = useParams();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [profile, setProfile] = useState(null);
   const [clubs, setClubs] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     Promise.all([
       profileApi.get(uid),
@@ -32,11 +36,28 @@ export default function PublicProfile() {
       setProfile(profileData);
       setClubs(memberships);
       setUpcomingEvents(organisedEvents);
-    }).finally(() => setLoading(false));
-  }, [uid]);
+    }).catch(() => setProfile(null))
+      .finally(() => setLoading(false));
+  }, [uid, isAuthenticated]);
 
   if (user?.uid === uid) {
     return <Navigate to="/profile" replace />;
+  }
+
+  // Profiles require sign-in to view (matches Firebase/firestore.rules —
+  // the users collection isn't publicly readable), so give signed-out
+  // visitors a clear prompt rather than a misleading "not found".
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-cream">
+        <Navbar />
+        <div className="pt-20 flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+          <h2 className="font-heading text-2xl font-bold text-charcoal mb-2">Sign in to view this profile</h2>
+          <p className="text-sm text-charcoal/60 mb-4">Member profiles are visible to signed-in LekkerVibes members.</p>
+          <Link to="/login" className="text-ocean text-sm font-medium">Log in</Link>
+        </div>
+      </div>
+    );
   }
 
   if (loading) {

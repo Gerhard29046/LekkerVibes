@@ -39,10 +39,22 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Firestore rejects an entire list/query (not just individual documents)
+// unless it can statically prove the read rule holds for every possible
+// result. The events read rule is `visibility != 'members' || (member
+// check)` — a query with no visibility filter mixes both branches, which
+// Firestore can't prove safe for an arbitrary/anonymous viewer, and 403s
+// the whole query (confirmed live: a plain city+status+date query 403'd for
+// a signed-out user even though the matching public event was individually
+// readable via a direct get()). Every general-purpose list must therefore
+// filter `visibility == 'public'` explicitly. Members-only events are only
+// ever listed scoped to one specific community (see listCommunityEvents),
+// where the extra `communityId` equality filter makes the membership check
+// invariant across the result set and therefore provable.
 export const eventsApi = {
   // { city, communityId, category, mood, search }
   async list({ city, communityId, category, mood, search } = {}) {
-    const clauses = [where('status', '==', 'active'), where('date', '>=', todayIso())];
+    const clauses = [where('status', '==', 'active'), where('date', '>=', todayIso()), where('visibility', '==', 'public')];
     if (communityId) clauses.push(where('communityId', '==', communityId));
     else if (city) clauses.push(where('city', '==', city));
     const q = query(collection(db, 'events'), ...clauses, orderBy('date', 'asc'), fsLimit(50));
@@ -58,6 +70,24 @@ export const eventsApi = {
     }
     const counts = await Promise.all(items.map((e) => attendeeCount(e.id)));
     return items.map((e, i) => ({ ...e, attendeeCount: counts[i] }));
+  },
+
+  // A community's full upcoming-events list (public + members-only),
+  // for use on a community page where `isMember` has already been
+  // established client-side. Two separate queries because mixing both
+  // visibility values in one query is exactly the unprovable case above.
+  async listCommunityEvents(communityId, isMember) {
+    const base = [where('status', '==', 'active'), where('date', '>=', todayIso()), where('communityId', '==', communityId)];
+    const publicQuery = query(collection(db, 'events'), ...base, where('visibility', '==', 'public'), orderBy('date', 'asc'));
+    const queries = [getDocs(publicQuery)];
+    if (isMember) {
+      const membersQuery = query(collection(db, 'events'), ...base, where('visibility', '==', 'members'), orderBy('date', 'asc'));
+      queries.push(getDocs(membersQuery));
+    }
+    const snaps = await Promise.all(queries);
+    const items = snaps.flatMap((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    const counts = await Promise.all(items.map((e) => attendeeCount(e.id)));
+    return items.map((e, i) => ({ ...e, attendeeCount: counts[i] })).sort((a, b) => a.date.localeCompare(b.date));
   },
 
   async get(id, currentUid) {
@@ -135,16 +165,22 @@ export const eventsApi = {
     return deleteDoc(doc(db, 'events', id, 'attendees', uid));
   },
 
-  // A single equality filter (no composite index needed) — used for a
-  // public profile's "upcoming public events" list, filtered client-side
-  // rather than adding a dedicated (organiserId, status, date) index for a
-  // rarely-hit, low-volume query.
+  // Equality-only filters (no orderBy) — Firestore doesn't need a composite
+  // index for pure-equality multi-field queries. The explicit visibility
+  // filter is required for the query to be provable for an anonymous
+  // viewer (see the note above `list()`); status/date are filtered
+  // client-side rather than added to the query, since combining them with
+  // orderBy would need a dedicated index for what's a rare, low-volume call.
   async byOrganiser(organiserId) {
-    const snap = await getDocs(query(collection(db, 'events'), where('organiserId', '==', organiserId)));
+    const snap = await getDocs(query(
+      collection(db, 'events'),
+      where('organiserId', '==', organiserId),
+      where('visibility', '==', 'public'),
+    ));
     const today = todayIso();
     return snap.docs
       .map((d) => ({ id: d.id, ...d.data() }))
-      .filter((e) => e.status === 'active' && e.visibility === 'public' && e.date >= today);
+      .filter((e) => e.status === 'active' && e.date >= today);
   },
 
   // Events the given uid is attending — "my plans" on the profile page.

@@ -28,7 +28,7 @@ export default function ClubDetail() {
     communitiesApi.get(id, user?.uid)
       .then(clubData => {
         setClub(clubData);
-        return clubData ? eventsApi.list({ communityId: id }) : [];
+        return clubData ? eventsApi.listCommunityEvents(id, !!clubData.myMembership) : [];
       })
       .then(result => setActivities(result || []))
       .catch(() => setClub(null))
