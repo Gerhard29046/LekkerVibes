@@ -11,10 +11,14 @@ import { LocationProvider } from '@/hooks/useLocation';
 import Home from '@/pages/Home';
 import Discover from '@/pages/Discover';
 import ActivityDetail from '@/pages/ActivityDetail';
+import EditActivity from '@/pages/EditActivity';
 import Clubs from '@/pages/Clubs';
 import ClubDetail from '@/pages/ClubDetail';
+import EditClub from '@/pages/EditClub';
 import Safety from '@/pages/Safety';
 import Profile from '@/pages/Profile';
+import PublicProfile from '@/pages/PublicProfile';
+import Settings from '@/pages/Settings';
 import CreateActivity from '@/pages/CreateActivity';
 import CreateClub from '@/pages/CreateClub';
 import GroupChat from '@/pages/GroupChat';
@@ -47,6 +51,7 @@ const AuthenticatedApp = () => {
       <Route path="/clubs" element={<Clubs />} />
       <Route path="/club/:id" element={<ClubDetail />} />
       <Route path="/safety" element={<Safety />} />
+      <Route path="/u/:uid" element={<PublicProfile />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -54,8 +59,11 @@ const AuthenticatedApp = () => {
 
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route path="/profile" element={<Profile />} />
+        <Route path="/settings" element={<Settings />} />
         <Route path="/create-activity" element={<CreateActivity />} />
+        <Route path="/activity/:id/edit" element={<EditActivity />} />
         <Route path="/create-club" element={<CreateClub />} />
+        <Route path="/club/:id/edit" element={<EditClub />} />
         <Route path="/chat/:conversationId" element={<GroupChat />} />
       </Route>
 

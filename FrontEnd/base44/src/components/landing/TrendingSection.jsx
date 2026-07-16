@@ -15,8 +15,8 @@ export default function TrendingSection() {
   useEffect(() => {
     if (!FEATURES.events) return;
     setLoading(true);
-    eventsApi.list({ per_page: 4 })
-      .then(result => setActivities(result.data))
+    eventsApi.list({ city: selectedCity })
+      .then(result => setActivities(result.slice(0, 4)))
       .catch(() => setActivities([]))
       .finally(() => setLoading(false));
   }, [selectedCity]);

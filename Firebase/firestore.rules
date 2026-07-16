@@ -2,34 +2,156 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Narrow scope this pass: auth-linked profile + FCM tokens, and
-    // membership-gated group chat. Events/communities/etc. are not modeled
-    // here yet — see documentation/FEATURE_STATUS.md.
+    // ---------------------------------------------------------------------
+    // Users
+    // ---------------------------------------------------------------------
     match /users/{uid} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == uid;
-      // A user can update their own doc but can't self-promote `role` —
-      // that's Worker-only (see Worker/src/routes/admin.ts).
+      // A user can update their own doc but can't self-promote `role` or
+      // flip `isVerified` — both are Worker-only (see Worker/src/routes/).
       allow update: if request.auth != null && request.auth.uid == uid
-                    && !('role' in request.resource.data.diff(resource.data).affectedKeys());
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isVerified']);
       allow delete: if false;
 
       match /fcmTokens/{tokenId} {
         allow read, write: if request.auth != null && request.auth.uid == uid;
       }
+
+      // Saved places/events (bookmarks) — self-only.
+      match /saved/{itemId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // "Add to plans" — a personal intent-to-attend list, distinct from a
+      // plain bookmark. Same self-only shape as /saved.
+      match /plans/{itemId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // Private block list — self-only, never publicly readable.
+      match /blocks/{blockedUid} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
     }
 
+    // ---------------------------------------------------------------------
+    // Communities / clubs / groups
+    // ---------------------------------------------------------------------
+    match /communities/{communityId} {
+      // Public browsing — signed out visitors can view the directory.
+      allow read: if true;
+      allow create: if request.auth != null
+                    && request.resource.data.ownerId == request.auth.uid;
+      // Only the owner or a member with role in [organiser] may edit; the
+      // ownerId field itself can never be reassigned this way.
+      allow update: if request.auth != null
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerId'])
+                    && (resource.data.ownerId == request.auth.uid
+                        || (exists(/databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid))
+                            && get(/databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid)).data.role == 'organiser'));
+      allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+
+      match /members/{uid} {
+        allow read: if true;
+        // Self-join only, and always as a plain member — organiser/moderator
+        // tiers can only be granted by an existing organiser/owner (below),
+        // never self-assigned. The one exception is the community's own
+        // creator, who is allowed to seed their own 'organiser' membership
+        // doc at community-creation time (there's no other member yet who
+        // could grant it to them).
+        allow create: if request.auth != null && request.auth.uid == uid
+                      && (request.resource.data.role == 'member'
+                          || (request.resource.data.role == 'organiser'
+                              && get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId == uid));
+        // Self-leave, except the owner (must transfer/delete the community
+        // instead of abandoning it with no owner).
+        allow delete: if request.auth != null && request.auth.uid == uid
+                      && get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId != uid;
+        // Role changes to *another* member: only the owner or an existing
+        // organiser may promote/demote. A member can never write their own
+        // role change through this path.
+        allow update: if request.auth != null && request.auth.uid != uid
+                      && (get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId == request.auth.uid
+                          || get(/databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid)).data.role == 'organiser');
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // Events
+    // ---------------------------------------------------------------------
+    match /events/{eventId} {
+      // Members-only events are hidden from non-members; public events are
+      // visible to everyone including signed-out visitors.
+      allow read: if resource.data.visibility != 'members'
+                  || (request.auth != null
+                      && exists(/databases/$(database)/documents/communities/$(resource.data.communityId)/members/$(request.auth.uid)));
+      allow create: if request.auth != null
+                    && request.resource.data.organiserId == request.auth.uid
+                    && (request.resource.data.communityId == null
+                        || exists(/databases/$(database)/documents/communities/$(request.resource.data.communityId)/members/$(request.auth.uid)));
+      // Only the organiser may edit or cancel; organiserId itself is fixed.
+      allow update: if request.auth != null && resource.data.organiserId == request.auth.uid
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['organiserId']);
+      allow delete: if request.auth != null && resource.data.organiserId == request.auth.uid;
+
+      match /attendees/{uid} {
+        allow read: if request.auth != null;
+        allow create, update: if request.auth != null && request.auth.uid == uid;
+        allow delete: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // Conversations — group/community messaging only, never 1:1 DMs.
+    //
+    // Two membership shapes are supported on the same collection:
+    //  - Legacy/generic: an explicit `memberIds` array on the conversation
+    //    doc (how the pre-communities test conversations were seeded via
+    //    the Worker/admin bootstrap — kept working, not migrated).
+    //  - Community-scoped: conversationId == communityId, created once
+    //    alongside the community itself, with membership derived from the
+    //    community's own /members subcollection instead of a duplicated
+    //    array — nothing to keep in sync on join/leave.
+    // ---------------------------------------------------------------------
     match /conversations/{conversationId} {
-      allow read: if request.auth != null && request.auth.uid in resource.data.memberIds;
-      // Conversation creation/membership is admin/Worker-managed only this
-      // pass (no community/event creation flow ships yet).
-      allow write: if false;
+      function isLegacyMember() {
+        return request.auth != null
+          && 'memberIds' in resource.data
+          && request.auth.uid in resource.data.memberIds;
+      }
+      function isCommunityMember() {
+        return request.auth != null
+          && exists(/databases/$(database)/documents/communities/$(conversationId)/members/$(request.auth.uid));
+      }
+
+      allow read: if isLegacyMember() || isCommunityMember();
+      // Only the community's owner creates the paired conversation doc,
+      // at community-creation time, in the same client batch write. Legacy
+      // memberIds-based conversations are Worker/admin-created only (the
+      // Worker's service-account credentials bypass these rules entirely).
+      allow create: if request.auth != null
+                    && request.resource.data.type == 'community'
+                    && request.resource.data.communityId == conversationId
+                    && get(/databases/$(database)/documents/communities/$(conversationId)).data.ownerId == request.auth.uid;
+      allow update, delete: if false;
 
       match /messages/{messageId} {
-        allow read: if request.auth != null
-          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.memberIds;
-        allow create: if request.auth != null
-          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.memberIds
+        // `resource` inside /messages/{messageId} refers to the message
+        // doc, not the conversation, so the conversation must be re-fetched
+        // explicitly here rather than reusing the outer isLegacyMember()/
+        // isCommunityMember() helpers (which rely on the outer `resource`).
+        function conversation() {
+          return get(/databases/$(database)/documents/conversations/$(conversationId)).data;
+        }
+        function isMemberOfConversation() {
+          return request.auth != null
+            && (('memberIds' in conversation() && request.auth.uid in conversation().memberIds)
+                || exists(/databases/$(database)/documents/communities/$(conversationId)/members/$(request.auth.uid)));
+        }
+
+        allow read: if isMemberOfConversation();
+        allow create: if isMemberOfConversation()
           && request.resource.data.senderId == request.auth.uid
           && request.resource.data.isDeleted == false;
         // A sender may only soft-delete their own message (isDeleted=true,
@@ -42,6 +164,17 @@ service cloud.firestore {
           && request.resource.data.isDeleted == true;
         allow delete: if false;
       }
+    }
+
+    // ---------------------------------------------------------------------
+    // Reports — write-only from the client; only staff (custom claim set by
+    // the Worker's admin routes) can read the queue. Never client-readable
+    // by the general public, and never editable by the reporter afterwards.
+    // ---------------------------------------------------------------------
+    match /reports/{reportId} {
+      allow create: if request.auth != null && request.resource.data.reporterId == request.auth.uid;
+      allow read: if request.auth != null && request.auth.token.role in ['admin', 'moderator'];
+      allow update, delete: if false;
     }
   }
 }

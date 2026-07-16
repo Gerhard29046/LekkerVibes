@@ -9,7 +9,7 @@ import Footer from '@/components/landing/Footer';
 import ActivityCard from '@/components/landing/ActivityCard';
 import {
   ArrowLeft, MapPin, Users, Calendar, MessageCircle,
-  Shield, Share2, Flag, Loader2
+  Shield, Share2, Flag, Loader2, Pencil
 } from 'lucide-react';
 import { FEATURES } from '@/lib/featureFlags';
 import ComingSoon from '@/components/ComingSoon';
@@ -17,19 +17,20 @@ import ComingSoon from '@/components/ComingSoon';
 export default function ClubDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [club, setClub] = useState(null);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [joinLoading, setJoinLoading] = useState(false);
+  const [reported, setReported] = useState(false);
 
   const load = () => {
-    communitiesApi.get(id)
+    communitiesApi.get(id, user?.uid)
       .then(clubData => {
         setClub(clubData);
-        return eventsApi.list({ community_id: id, per_page: 10 });
+        return clubData ? eventsApi.list({ communityId: id }) : [];
       })
-      .then(result => setActivities(result?.data || []))
+      .then(result => setActivities(result || []))
       .catch(() => setClub(null))
       .finally(() => setLoading(false));
   };
@@ -42,7 +43,7 @@ export default function ClubDetail() {
     setLoading(true);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, user?.uid]);
 
   if (!FEATURES.communities) {
     return <ComingSoon feature="Communities" />;
@@ -71,6 +72,9 @@ export default function ClubDetail() {
     );
   }
 
+  const isMember = !!club.myMembership;
+  const isOwnerOrOrganiser = club.myMembership?.role === 'organiser' || club.ownerId === user?.uid;
+
   const handleJoin = async () => {
     if (!isAuthenticated) {
       navigate('/login');
@@ -78,7 +82,17 @@ export default function ClubDetail() {
     }
     setJoinLoading(true);
     try {
-      await communitiesApi.join(club.id);
+      await communitiesApi.join(club.id, user);
+      load();
+    } finally {
+      setJoinLoading(false);
+    }
+  };
+
+  const handleLeave = async () => {
+    setJoinLoading(true);
+    try {
+      await communitiesApi.leave(club.id, user.uid);
       load();
     } finally {
       setJoinLoading(false);
@@ -90,15 +104,9 @@ export default function ClubDetail() {
       navigate('/login');
       return;
     }
-    await reportsApi.create({ reportableType: 'community', reportableId: club.id, reason: 'other' });
+    await reportsApi.create({ reportableType: 'community', reportableId: club.id, reason: 'other', details: undefined }, user);
+    setReported(true);
   };
-
-  const membershipStatus = club.my_membership?.status;
-  const joinLabel = membershipStatus === 'active'
-    ? "You're a member"
-    : club.join_policy === 'request'
-      ? 'Request to Join'
-      : 'Join Community';
 
   return (
     <div className="min-h-screen bg-cream">
@@ -107,19 +115,27 @@ export default function ClubDetail() {
       {/* Cover */}
       <div className="relative h-[35vh] sm:h-[45vh] overflow-hidden">
         <img
-          src={club.cover_url || 'https://images.unsplash.com/photo-1571008887538-b36bb32f4571?w=1600'}
+          src={club.imageURL || 'https://images.unsplash.com/photo-1571008887538-b36bb32f4571?w=1600'}
           alt={club.name}
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-charcoal/70 via-charcoal/20 to-transparent" />
 
-        <div className="absolute top-20 left-4 sm:left-6">
+        <div className="absolute top-20 left-4 sm:left-6 flex items-center gap-2">
           <Link
             to="/clubs"
             className="flex items-center gap-1.5 px-4 py-2 rounded-full glass-dark text-white text-sm font-medium"
           >
             <ArrowLeft className="w-4 h-4" /> Communities
           </Link>
+          {isOwnerOrOrganiser && (
+            <Link
+              to={`/club/${club.id}/edit`}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-full glass-dark text-white text-sm font-medium"
+            >
+              <Pencil className="w-4 h-4" /> Edit
+            </Link>
+          )}
         </div>
 
         <div className="absolute bottom-6 left-4 sm:left-6 right-4 sm:right-6">
@@ -137,12 +153,12 @@ export default function ClubDetail() {
             <div className="flex gap-4">
               <div className="bg-white rounded-xl px-5 py-3 border border-sand flex items-center gap-2">
                 <Users className="w-4 h-4 text-ocean" />
-                <span className="text-sm font-semibold text-charcoal">{club.member_count} members</span>
+                <span className="text-sm font-semibold text-charcoal">{club.memberCount} members</span>
               </div>
-              {club.location && (
+              {club.city && (
                 <div className="bg-white rounded-xl px-5 py-3 border border-sand flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-coral" />
-                  <span className="text-sm font-semibold text-charcoal">{club.location.name}</span>
+                  <span className="text-sm font-semibold text-charcoal">{club.city}</span>
                 </div>
               )}
             </div>
@@ -150,24 +166,17 @@ export default function ClubDetail() {
             {/* About */}
             <div className="bg-white rounded-2xl p-6 border border-sand">
               <h2 className="font-heading text-lg font-semibold text-charcoal mb-4">About</h2>
-              <p className="text-sm text-charcoal/70 leading-relaxed">{club.description}</p>
+              <p className="text-sm text-charcoal/70 leading-relaxed whitespace-pre-wrap">{club.description}</p>
             </div>
 
             {/* Guidelines */}
-            {club.rules?.length > 0 && (
+            {club.rules && (
               <div className="bg-white rounded-2xl p-6 border border-sand">
                 <h3 className="font-heading text-base font-semibold text-charcoal mb-3 flex items-center gap-2">
                   <Shield className="w-4 h-4 text-ocean" />
                   Community Guidelines
                 </h3>
-                <ol className="space-y-2">
-                  {club.rules.map(rule => (
-                    <li key={rule.id} className="text-sm text-charcoal/70 leading-relaxed">
-                      <span className="font-medium text-charcoal">{rule.title}</span>
-                      {rule.description && <span> — {rule.description}</span>}
-                    </li>
-                  ))}
-                </ol>
+                <p className="text-sm text-charcoal/70 leading-relaxed whitespace-pre-wrap">{club.rules}</p>
               </div>
             )}
 
@@ -191,14 +200,18 @@ export default function ClubDetail() {
           <div className="space-y-5">
             <div className="bg-white rounded-2xl p-6 border border-sand sticky top-24">
               <button
-                onClick={handleJoin}
-                disabled={joinLoading || membershipStatus === 'active'}
-                className="w-full py-3 bg-gradient-to-r from-ocean to-teal text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-ocean/20 transition-all mb-3 text-sm disabled:opacity-60"
+                onClick={isMember ? handleLeave : handleJoin}
+                disabled={joinLoading}
+                className={`w-full py-3 font-semibold rounded-xl transition-all mb-3 text-sm disabled:opacity-60 ${
+                  isMember
+                    ? 'bg-sand text-charcoal hover:bg-sand/80'
+                    : 'bg-gradient-to-r from-ocean to-teal text-white hover:shadow-lg hover:shadow-ocean/20'
+                }`}
               >
-                {joinLoading ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : joinLabel}
+                {joinLoading ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : isMember ? 'Leave Community' : 'Join Community'}
               </button>
-              {club.welcome_conversation_id && membershipStatus === 'active' && (
-                <Link to={`/chat/${club.welcome_conversation_id}`} className="w-full py-3 bg-ocean/10 text-ocean font-semibold rounded-xl hover:bg-ocean/20 transition-colors text-sm mb-4 flex items-center justify-center gap-2">
+              {isMember && (
+                <Link to={`/chat/${club.id}`} className="w-full py-3 bg-ocean/10 text-ocean font-semibold rounded-xl hover:bg-ocean/20 transition-colors text-sm mb-4 flex items-center justify-center gap-2">
                   <MessageCircle className="w-4 h-4" />
                   Group Chat
                 </Link>
@@ -207,8 +220,12 @@ export default function ClubDetail() {
                 <button className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-sand rounded-xl text-xs font-medium text-charcoal">
                   <Share2 className="w-3.5 h-3.5" /> Share
                 </button>
-                <button onClick={handleReport} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-sand rounded-xl text-xs font-medium text-charcoal">
-                  <Flag className="w-3.5 h-3.5" /> Report
+                <button
+                  onClick={handleReport}
+                  disabled={reported}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-sand rounded-xl text-xs font-medium text-charcoal disabled:opacity-60"
+                >
+                  <Flag className="w-3.5 h-3.5" /> {reported ? 'Reported' : 'Report'}
                 </button>
               </div>
             </div>
@@ -216,15 +233,14 @@ export default function ClubDetail() {
             {/* Organiser */}
             <div className="bg-white rounded-2xl p-5 border border-sand">
               <h3 className="font-heading text-sm font-semibold text-charcoal mb-3">Organised by</h3>
-              <div className="flex items-center gap-3">
+              <Link to={`/u/${club.ownerId}`} className="flex items-center gap-3 group">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-ocean to-teal flex items-center justify-center text-white font-bold text-sm">
-                  {(club.creator?.name || 'O')[0]}
+                  {(club.ownerName || 'O')[0]}
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-charcoal">{club.creator?.name}</p>
-                  <p className="text-xs text-charcoal/50 capitalize">{club.join_policy} membership</p>
+                  <p className="text-sm font-medium text-charcoal group-hover:text-ocean transition-colors">{club.ownerName}</p>
                 </div>
-              </div>
+              </Link>
             </div>
           </div>
         </div>

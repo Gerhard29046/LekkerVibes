@@ -1,18 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Search, MapPin, Sparkles, ArrowRight, ChevronDown } from 'lucide-react';
 import { useLocation } from '@/hooks/useLocation.jsx';
+import { useClickOutside } from '@/hooks/useClickOutside.jsx';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
-const MOODS = [
-  'Meet people', 'Be active', 'Something chilled', 'Go out tonight',
-  'Something outdoors', 'Alcohol-free', 'Creative', 'Beginner-friendly'
-];
+// Only 3 moods on the hero by design — the rest live in the full Discover
+// filters so the hero stays uncluttered.
+const MOODS = ['Meet people', 'Be active', 'Something chilled'];
 
 export default function HeroSection() {
   const { selectedCity, setSelectedCity, cities } = useLocation();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedMood, setSelectedMood] = useState(null);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const closeLocationDropdown = useCallback(() => setShowLocationDropdown(false), []);
+  const locationRef = useClickOutside(showLocationDropdown, closeLocationDropdown);
+
+  const handleExplore = () => {
+    const params = new URLSearchParams();
+    if (selectedCity) params.set('city', selectedCity);
+    if (searchQuery.trim()) params.set('search', searchQuery.trim());
+    if (selectedMood) params.set('mood', selectedMood);
+    navigate(`/discover?${params.toString()}`);
+  };
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
@@ -90,9 +102,11 @@ export default function HeroSection() {
               </div>
 
               {/* Location */}
-              <div className="relative">
+              <div ref={locationRef} className="relative">
                 <button
                   onClick={() => setShowLocationDropdown(!showLocationDropdown)}
+                  aria-haspopup="listbox"
+                  aria-expanded={showLocationDropdown}
                   className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white/50 text-sm text-charcoal w-full sm:w-auto"
                 >
                   <MapPin className="w-4 h-4 text-coral shrink-0" />
@@ -100,10 +114,15 @@ export default function HeroSection() {
                   <ChevronDown className="w-3.5 h-3.5 text-charcoal/40 shrink-0" />
                 </button>
                 {showLocationDropdown && (
-                  <div className="absolute top-full mt-1 left-0 right-0 sm:right-auto bg-white rounded-xl shadow-xl border border-sand p-2 min-w-[180px] z-20">
+                  <div
+                    role="listbox"
+                    className="absolute top-full mt-2 left-0 right-0 sm:right-auto bg-white rounded-xl shadow-xl border border-sand p-2 min-w-[180px] max-h-[60vh] overflow-y-auto z-40"
+                  >
                     {cities.map(city => (
                       <button
                         key={city}
+                        role="option"
+                        aria-selected={selectedCity === city}
                         onClick={() => { setSelectedCity(city); setShowLocationDropdown(false); }}
                         className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                           selectedCity === city ? 'bg-ocean/10 text-ocean font-medium' : 'hover:bg-sand'
@@ -117,31 +136,38 @@ export default function HeroSection() {
               </div>
 
               {/* Explore button */}
-              <Link
-                to="/discover"
+              <button
+                onClick={handleExplore}
                 className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-ocean to-teal text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-ocean/30 transition-all"
               >
                 <Sparkles className="w-4 h-4" />
                 Explore
-              </Link>
+              </button>
             </div>
           </motion.div>
 
-          {/* Quick mood pills */}
+          {/* Quick mood pills — kept clear of the location dropdown above via
+              its own z-40 layer; this row never needs to shift for it since
+              the dropdown floats over content rather than pushing layout. */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.7 }}
-            className="flex flex-wrap gap-2 mt-6"
+            className={`relative z-10 flex flex-wrap gap-2 mt-6 transition-[margin] duration-300 motion-reduce:transition-none ${showLocationDropdown ? 'mt-72 sm:mt-16' : 'mt-6'}`}
           >
             {MOODS.map(mood => (
-              <Link
+              <button
                 key={mood}
-                to="/discover"
-                className="px-4 py-1.5 rounded-full glass-dark text-white/80 text-xs font-medium hover:bg-white/20 transition-colors cursor-pointer"
+                onClick={() => setSelectedMood(current => current === mood ? null : mood)}
+                aria-pressed={selectedMood === mood}
+                className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer border ${
+                  selectedMood === mood
+                    ? 'bg-coral text-white border-coral'
+                    : 'glass-dark text-white/80 border-transparent hover:bg-white/20'
+                }`}
               >
                 {mood}
-              </Link>
+              </button>
             ))}
           </motion.div>
 

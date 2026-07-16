@@ -15,8 +15,8 @@ export default function GoAloneSection() {
   useEffect(() => {
     if (!FEATURES.events) return;
     setLoading(true);
-    eventsApi.list({ is_attend_alone_friendly: 1, per_page: 4 })
-      .then(result => setActivities(result.data))
+    eventsApi.list({ city: selectedCity, mood: 'Meet people' })
+      .then(result => setActivities(result.slice(0, 4)))
       .catch(() => setActivities([]))
       .finally(() => setLoading(false));
   }, [selectedCity]);

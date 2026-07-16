@@ -2,9 +2,12 @@ import { useState, useEffect, createContext, useContext } from 'react';
 
 const LocationContext = createContext(null);
 
+// City-theme architecture: this list (and the persisted selection below)
+// drives location-aware theming elsewhere in the app. Keep in alphabetical
+// order — more cities/themes will be added later, not replaced.
 const CITIES = [
-  "Stellenbosch", "Somerset West", "Cape Town", "Paarl", "Durbanville",
-  "Bellville", "George", "Gqeberha", "Johannesburg", "Pretoria", "Durban"
+  "Bellville", "Cape Town", "Durbanville", "George",
+  "Gqeberha", "Paarl", "Somerset West", "Stellenbosch"
 ];
 
 export function LocationProvider({ children }) {

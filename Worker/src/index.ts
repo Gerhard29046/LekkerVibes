@@ -4,6 +4,7 @@ import { healthRoute } from './routes/health';
 import { adminRoute } from './routes/admin';
 import { moderationRoute } from './routes/moderation';
 import { notificationsRoute } from './routes/notifications';
+import { discoverRoute } from './routes/discover';
 import type { Env, Variables } from './types/env';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -23,6 +24,7 @@ v1.route('/', healthRoute);
 v1.route('/', adminRoute);
 v1.route('/', moderationRoute);
 v1.route('/', notificationsRoute);
+v1.route('/', discoverRoute);
 
 app.route('/v1', v1);
 

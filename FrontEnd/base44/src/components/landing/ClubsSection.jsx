@@ -14,8 +14,8 @@ export default function ClubsSection() {
   useEffect(() => {
     if (!FEATURES.communities) return;
     setLoading(true);
-    communitiesApi.list({ per_page: 4 })
-      .then(result => setClubs(result.data))
+    communitiesApi.list({ city: selectedCity })
+      .then(result => setClubs(result.slice(0, 4)))
       .catch(() => setClubs([]))
       .finally(() => setLoading(false));
   }, [selectedCity]);
@@ -79,7 +79,7 @@ export default function ClubsSection() {
                 <div className="bg-white rounded-2xl overflow-hidden border border-sand/80 card-hover shadow-sm">
                   <div className="relative h-32 overflow-hidden">
                     <img
-                      src={club.cover_url || 'https://images.unsplash.com/photo-1571008887538-b36bb32f4571?w=600'}
+                      src={club.imageURL || 'https://images.unsplash.com/photo-1571008887538-b36bb32f4571?w=600'}
                       alt={club.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
@@ -95,11 +95,11 @@ export default function ClubsSection() {
                     <div className="flex items-center justify-between text-xs text-charcoal/50">
                       <span className="flex items-center gap-1">
                         <MapPin className="w-3 h-3" />
-                        {club.location?.name}
+                        {club.city}
                       </span>
                       <span className="flex items-center gap-1">
                         <Users className="w-3 h-3" />
-                        {club.member_count} members
+                        {club.memberCount} members
                       </span>
                     </div>
                   </div>

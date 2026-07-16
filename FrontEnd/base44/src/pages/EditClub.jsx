@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { communitiesApi } from '@/api/communitiesApi';
 import { uploadsApi } from '@/api/uploadsApi';
 import { useAuth } from '@/lib/AuthContext';
 import { useLocation } from '@/hooks/useLocation.jsx';
-import { useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import Navbar from '@/components/landing/Navbar';
-import { ArrowLeft, Upload, Loader2, Users } from 'lucide-react';
+import { ArrowLeft, Upload, Loader2, Save } from 'lucide-react';
 import { FEATURES } from '@/lib/featureFlags';
 import ComingSoon from '@/components/ComingSoon';
 
@@ -14,18 +14,67 @@ const CATEGORIES = [
   'Food & Markets', 'Faith & Community', 'Social & Dining', 'Book Club', 'Gaming',
 ];
 
-export default function CreateClub() {
+export default function EditClub() {
+  const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { cities, selectedCity } = useLocation();
+  const { cities } = useLocation();
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState('');
+  const [notAllowed, setNotAllowed] = useState(false);
+  const [form, setForm] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
-  const [form, setForm] = useState({
-    name: '', description: '', city: selectedCity,
-    category: '', rules: '', imageURL: null,
-  });
+
+  useEffect(() => {
+    if (!FEATURES.communities) {
+      setLoading(false);
+      return;
+    }
+    communitiesApi.get(id, user?.uid).then(club => {
+      if (!club) {
+        setNotAllowed(true);
+        return;
+      }
+      const canEdit = club.ownerId === user?.uid || club.myMembership?.role === 'organiser';
+      if (!canEdit) {
+        setNotAllowed(true);
+        return;
+      }
+      setForm({
+        name: club.name, description: club.description || '', city: club.city,
+        category: club.category || '', rules: club.rules || '', imageURL: club.imageURL || null,
+      });
+      setImagePreview(club.imageURL || '');
+    }).finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, user?.uid]);
+
+  if (!FEATURES.communities) return <ComingSoon feature="Communities" />;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-cream">
+        <Navbar />
+        <div className="pt-20 flex items-center justify-center min-h-[60vh]">
+          <div className="w-8 h-8 border-4 border-sand border-t-ocean rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (notAllowed || !form) {
+    return (
+      <div className="min-h-screen bg-cream">
+        <Navbar />
+        <div className="pt-20 flex flex-col items-center justify-center min-h-[60vh]">
+          <h2 className="font-heading text-2xl font-bold text-charcoal mb-2">Can't edit this community</h2>
+          <p className="text-sm text-charcoal/60 mb-4">You need to be its owner or an organiser.</p>
+          <Link to={`/club/${id}`} className="text-ocean text-sm font-medium">Back to community</Link>
+        </div>
+      </div>
+    );
+  }
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
@@ -33,13 +82,10 @@ export default function CreateClub() {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
-    setUploadError('');
     try {
-      const url = await uploadsApi.upload(file, `communities/${user.uid}-${Date.now()}`);
+      const url = await uploadsApi.upload(file, `communities/${id}`);
       set('imageURL', url);
       setImagePreview(url);
-    } catch (err) {
-      setUploadError(err.message || 'Upload failed — please try a different image.');
     } finally {
       setUploading(false);
     }
@@ -49,28 +95,23 @@ export default function CreateClub() {
     e.preventDefault();
     setSaving(true);
     try {
-      const { id } = await communitiesApi.create(form, user);
+      await communitiesApi.update(id, form);
       navigate(`/club/${id}`);
     } finally {
       setSaving(false);
     }
   };
 
-  if (!FEATURES.communities) {
-    return <ComingSoon feature="Creating communities" />;
-  }
-
   return (
     <div className="min-h-screen bg-cream">
       <Navbar />
       <div className="pt-20 max-w-2xl mx-auto px-4 sm:px-6 py-8">
-        <Link to="/profile" className="flex items-center gap-1.5 text-sm text-charcoal/60 hover:text-charcoal mb-6 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back to profile
+        <Link to={`/club/${id}`} className="flex items-center gap-1.5 text-sm text-charcoal/60 hover:text-charcoal mb-6 transition-colors">
+          <ArrowLeft className="w-4 h-4" /> Back to community
         </Link>
-        <h1 className="font-heading text-2xl font-bold text-charcoal mb-6">Create a Group</h1>
+        <h1 className="font-heading text-2xl font-bold text-charcoal mb-6">Edit Community</h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Image */}
           <div className="bg-white rounded-2xl p-5 border border-sand space-y-4">
             <h3 className="font-heading font-semibold text-charcoal text-sm">Group Image</h3>
             <div className="relative h-36 rounded-xl overflow-hidden bg-sand border-2 border-dashed border-border cursor-pointer">
@@ -88,20 +129,18 @@ export default function CreateClub() {
                 </div>
               )}
             </div>
-            {uploadError && <p className="text-xs text-coral">{uploadError}</p>}
           </div>
 
           <div className="bg-white rounded-2xl p-5 border border-sand space-y-4">
             <h3 className="font-heading font-semibold text-charcoal text-sm">Basic Info</h3>
             <div>
               <label className="text-xs font-semibold text-charcoal/60 block mb-1.5">Group Name *</label>
-              <input required value={form.name} onChange={e => set('name', e.target.value)}
-                placeholder="e.g. Stellenbosch Trail Runners" className={inputCls} />
+              <input required value={form.name} onChange={e => set('name', e.target.value)} className={inputCls} />
             </div>
             <div>
               <label className="text-xs font-semibold text-charcoal/60 block mb-1.5">Description</label>
               <textarea value={form.description} onChange={e => set('description', e.target.value)}
-                rows={4} placeholder="What is your group about? Who is it for?" className={`${inputCls} resize-none`} />
+                rows={4} className={`${inputCls} resize-none`} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -123,13 +162,12 @@ export default function CreateClub() {
           <div className="bg-white rounded-2xl p-5 border border-sand">
             <h3 className="font-heading font-semibold text-charcoal text-sm mb-3">Community Guidelines</h3>
             <textarea value={form.rules} onChange={e => set('rules', e.target.value)}
-              rows={4} placeholder="Set expectations for members: behaviour, respect, communication..."
-              className={`${inputCls} resize-none`} />
+              rows={4} className={`${inputCls} resize-none`} />
           </div>
 
           <button type="submit" disabled={saving || uploading}
             className="w-full py-3.5 bg-gradient-to-r from-ocean to-teal text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-ocean/20 transition-all disabled:opacity-60 flex items-center justify-center gap-2 text-sm">
-            {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating...</> : <><Users className="w-4 h-4" /> Create Group</>}
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : <><Save className="w-4 h-4" /> Save Changes</>}
           </button>
         </form>
       </div>

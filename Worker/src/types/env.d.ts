@@ -6,6 +6,7 @@ export interface Env {
   GCP_PROJECT_ID: string;
   GCP_SERVICE_ACCOUNT_JSON: string;
   ADMIN_BOOTSTRAP_SECRET: string;
+  GOOGLE_MAPS_API_KEY: string;
 }
 
 export interface Variables {

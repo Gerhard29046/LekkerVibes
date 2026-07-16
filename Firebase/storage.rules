@@ -1,0 +1,31 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Images are public read (they're shown on public cards/pages); writes
+    // require auth, a sane size cap, and an actual image content-type.
+    // Note: this does not itself verify the uploader owns the community/
+    // event the image is filed under — that's enforced where it matters,
+    // by the Firestore rules gating who can write the community/event
+    // doc's imageURL field to point at an uploaded file. An authenticated
+    // user could waste storage quota uploading under another community's
+    // path, but could not make it "stick" as that community's image.
+    match /users/{uid}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == uid
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+    match /communities/{communityId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.resource.size < 8 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+    match /events/{eventId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.resource.size < 8 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

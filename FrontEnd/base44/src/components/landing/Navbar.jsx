@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useCallback, useEffect } from 'react';
+import { Link, useLocation as useRouterLocation } from 'react-router-dom';
 import { MapPin, Menu, X, ChevronDown, User, Plus } from 'lucide-react';
 import { useLocation } from '@/hooks/useLocation.jsx';
+import { useClickOutside } from '@/hooks/useClickOutside.jsx';
 import { useAuth } from '@/lib/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FEATURES } from '@/lib/featureFlags';
@@ -12,10 +13,16 @@ export default function Navbar() {
   const [createOpen, setCreateOpen] = useState(false);
   const { user } = useAuth();
   const { selectedCity, setSelectedCity, cities } = useLocation();
+  const { pathname } = useRouterLocation();
+  const closeCity = useCallback(() => setCityOpen(false), []);
+  const cityRef = useClickOutside(cityOpen, closeCity);
+
+  // Never leave the dropdown open across a navigation.
+  useEffect(() => { setCityOpen(false); }, [pathname]);
 
   const navLinks = [
     { label: 'Home', to: '/' },
-    FEATURES.events && { label: 'Discover', to: '/discover' },
+    FEATURES.discover && { label: 'Discover', to: '/discover' },
     FEATURES.communities && { label: 'Communities', to: '/clubs' },
     { label: 'Safety', to: '/safety' },
   ].filter(Boolean);
@@ -33,9 +40,11 @@ export default function Navbar() {
           </Link>
 
           {/* City selector */}
-          <div className="relative hidden md:block">
+          <div ref={cityRef} className="relative hidden md:block">
             <button
               onClick={() => setCityOpen(!cityOpen)}
+              aria-haspopup="listbox"
+              aria-expanded={cityOpen}
               className="flex items-center gap-1.5 text-sm font-medium text-charcoal/70 hover:text-ocean transition-colors px-3 py-1.5 rounded-full hover:bg-ocean/5"
             >
               <MapPin className="w-3.5 h-3.5 text-coral" />
@@ -48,11 +57,14 @@ export default function Navbar() {
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
-                  className="absolute top-full mt-1 left-0 bg-white rounded-xl shadow-xl border border-sand p-2 min-w-[180px]"
+                  role="listbox"
+                  className="absolute top-full mt-2 left-0 bg-white rounded-xl shadow-xl border border-sand p-2 min-w-[180px] max-h-[60vh] overflow-y-auto z-[60]"
                 >
                   {cities.map(city => (
                     <button
                       key={city}
+                      role="option"
+                      aria-selected={selectedCity === city}
                       onClick={() => { setSelectedCity(city); setCityOpen(false); }}
                       className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                         selectedCity === city ? 'bg-ocean/10 text-ocean font-medium' : 'hover:bg-sand text-charcoal'

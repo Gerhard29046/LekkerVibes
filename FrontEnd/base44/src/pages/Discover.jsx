@@ -1,49 +1,81 @@
-import React, { useState, useEffect } from 'react';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
-import { eventsApi, eventCategoriesApi } from '@/api/eventsApi';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Search, X, LocateFixed } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { discoverApi } from '@/api/discoverApi';
 import { useLocation } from '@/hooks/useLocation.jsx';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
-import ActivityCard from '@/components/landing/ActivityCard';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FEATURES } from '@/lib/featureFlags';
-import ComingSoon from '@/components/ComingSoon';
+import DiscoverPlaceCard from '@/components/landing/DiscoverPlaceCard';
+import { motion } from 'framer-motion';
+
+const CATEGORIES = [
+  'All', 'Running', 'Hiking', 'Surfing', 'Cycling', 'Yoga & Wellness',
+  'Food & Markets', 'Faith & Community', 'Social & Dining', 'Book Club', 'Gaming',
+];
+
+const MOODS = [
+  'Meet people', 'Be active', 'Something chilled', 'Go out tonight',
+  'Something outdoors', 'Alcohol-free', 'Creative', 'Beginner-friendly',
+];
+
+const SORTS = [
+  { value: 'recommended', label: 'Recommended' },
+  { value: 'highest_rated', label: 'Highest rated' },
+  { value: 'most_reviewed', label: 'Most reviewed' },
+  { value: 'nearest', label: 'Nearest' },
+];
 
 export default function Discover() {
-  const [activities, setActivities] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [categoryId, setCategoryId] = useState(null);
-  const [showFilters, setShowFilters] = useState(false);
-  const [beginnerOnly, setBeginnerOnly] = useState(false);
-  const [freeOnly, setFreeOnly] = useState(false);
-  const [aloneOnly, setAloneOnly] = useState(false);
+  const [searchParams] = useSearchParams();
   const { selectedCity } = useLocation();
+  const [search, setSearch] = useState(searchParams.get('search') || '');
+  const [category, setCategory] = useState('All');
+  const [mood, setMood] = useState(searchParams.get('mood') || null);
+  const [sort, setSort] = useState('recommended');
+  const [coords, setCoords] = useState(null);
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [notConfigured, setNotConfigured] = useState(false);
 
-  useEffect(() => {
-    if (!FEATURES.events) return;
-    eventCategoriesApi.list().then(setCategories).catch(() => setCategories([]));
-  }, []);
+  const city = searchParams.get('city') || selectedCity;
 
-  useEffect(() => {
-    if (!FEATURES.events) return;
+  const runSearch = useCallback((signal) => {
     setLoading(true);
-    const params = { search: search || undefined };
-    if (categoryId) params.category_id = categoryId;
-    if (beginnerOnly) params.is_beginner_friendly = 1;
-    if (freeOnly) params.is_free = 1;
-    if (aloneOnly) params.is_attend_alone_friendly = 1;
-
-    eventsApi.list(params)
-      .then(result => setActivities(result.data))
-      .catch(() => setActivities([]))
+    setError(null);
+    setNotConfigured(false);
+    discoverApi.search({
+      city,
+      search: search || undefined,
+      category: category !== 'All' ? category : undefined,
+      mood: mood || undefined,
+      sort,
+      latitude: coords?.lat,
+      longitude: coords?.lng,
+    }, signal)
+      .then((data) => setResults(data.results || []))
+      .catch((err) => {
+        if (err.name === 'AbortError') return;
+        if (err.status === 501) setNotConfigured(true);
+        else setError(err.message || 'Something went wrong loading results.');
+        setResults([]);
+      })
       .finally(() => setLoading(false));
-  }, [categoryId, beginnerOnly, freeOnly, aloneOnly, search]);
+  }, [city, search, category, mood, sort, coords]);
 
-  if (!FEATURES.events) {
-    return <ComingSoon feature="Discover" />;
-  }
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => runSearch(controller.signal), 300); // debounce typing
+    return () => { clearTimeout(timeout); controller.abort(); };
+  }, [runSearch]);
+
+  const handleUseLocation = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {},
+    );
+  };
 
   return (
     <div className="min-h-screen bg-cream">
@@ -52,97 +84,91 @@ export default function Discover() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="font-heading text-3xl sm:text-4xl font-bold text-charcoal mb-2">
-            Discover in {selectedCity}
+            Discover in {city}
           </h1>
           <p className="text-charcoal/60 text-sm sm:text-base">
-            Find activities, clubs, and experiences near you
+            Real places, clubs and communities near you — powered by Google Places
           </p>
         </div>
 
-        {/* Search and filters */}
+        {/* Search */}
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="flex-1 flex items-center gap-2 px-4 py-3 bg-white rounded-xl border border-sand">
             <Search className="w-4 h-4 text-charcoal/40" />
             <input
               type="text"
-              placeholder="Search activities..."
+              placeholder="What are you in the mood for?"
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full bg-transparent text-sm focus:outline-none"
             />
             {search && (
-              <button onClick={() => setSearch('')}>
+              <button onClick={() => setSearch('')} aria-label="Clear search">
                 <X className="w-4 h-4 text-charcoal/40" />
               </button>
             )}
           </div>
           <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium transition-colors ${
-              showFilters ? 'bg-ocean text-white border-ocean' : 'bg-white border-sand text-charcoal hover:border-ocean/30'
+            onClick={handleUseLocation}
+            className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium transition-colors shrink-0 ${
+              coords ? 'bg-ocean text-white border-ocean' : 'bg-white border-sand text-charcoal hover:border-ocean/30'
             }`}
           >
-            <SlidersHorizontal className="w-4 h-4" />
-            Filters
+            <LocateFixed className="w-4 h-4" />
+            {coords ? 'Using your location' : 'Use my location'}
           </button>
+          <select
+            value={sort}
+            onChange={e => setSort(e.target.value)}
+            className="px-4 py-3 rounded-xl border border-sand bg-white text-sm font-medium text-charcoal focus:outline-none shrink-0"
+          >
+            {SORTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
         </div>
 
-        {/* Filter panel */}
-        <AnimatePresence>
-          {showFilters && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden mb-6"
-            >
-              <div className="flex flex-wrap gap-2 p-4 bg-white rounded-xl border border-sand">
-                <label className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-sand cursor-pointer text-sm">
-                  <input type="checkbox" checked={beginnerOnly} onChange={e => setBeginnerOnly(e.target.checked)} className="rounded" />
-                  Beginner friendly
-                </label>
-                <label className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-sand cursor-pointer text-sm">
-                  <input type="checkbox" checked={freeOnly} onChange={e => setFreeOnly(e.target.checked)} className="rounded" />
-                  Free activities
-                </label>
-                <label className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-sand cursor-pointer text-sm">
-                  <input type="checkbox" checked={aloneOnly} onChange={e => setAloneOnly(e.target.checked)} className="rounded" />
-                  Go alone friendly
-                </label>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Category tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-4 mb-8 scrollbar-hide">
-          <button
-            onClick={() => setCategoryId(null)}
-            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-              categoryId === null
-                ? 'bg-ocean text-white'
-                : 'bg-white text-charcoal/60 hover:text-charcoal border border-sand'
-            }`}
-          >
-            All
-          </button>
-          {categories.map(cat => (
+        {/* Mood filters */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {MOODS.map(m => (
             <button
-              key={cat.id}
-              onClick={() => setCategoryId(cat.id)}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                categoryId === cat.id
-                  ? 'bg-ocean text-white'
-                  : 'bg-white text-charcoal/60 hover:text-charcoal border border-sand'
+              key={m}
+              onClick={() => setMood(current => current === m ? null : m)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                mood === m ? 'bg-coral text-white border-coral' : 'bg-white text-charcoal/70 border-sand hover:border-coral/40'
               }`}
             >
-              {cat.name}
+              {m}
             </button>
           ))}
         </div>
 
+        {/* Category tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-4 mb-4 scrollbar-hide">
+          {CATEGORIES.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setCategory(cat)}
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                category === cat
+                  ? 'bg-ocean text-white'
+                  : 'bg-white text-charcoal/60 hover:text-charcoal border border-sand'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        <p className="text-[11px] text-charcoal/40 mb-6">Place data © Google</p>
+
         {/* Results */}
-        {loading ? (
+        {notConfigured ? (
+          <div className="text-center py-20">
+            <h3 className="font-heading text-xl font-semibold text-charcoal mb-2">Discover isn't connected yet</h3>
+            <p className="text-sm text-charcoal/50 max-w-md mx-auto">
+              This deployment doesn't have a Google Places API key configured on the Worker yet, so there's nothing real to show here.
+            </p>
+          </div>
+        ) : loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {[...Array(8)].map((_, i) => (
               <div key={i} className="bg-white rounded-2xl overflow-hidden border border-sand animate-pulse">
@@ -155,22 +181,27 @@ export default function Discover() {
               </div>
             ))}
           </div>
-        ) : activities.length === 0 ? (
+        ) : error ? (
+          <div className="text-center py-20">
+            <h3 className="font-heading text-xl font-semibold text-charcoal mb-2">Couldn't load results</h3>
+            <p className="text-sm text-charcoal/50">{error}</p>
+          </div>
+        ) : results.length === 0 ? (
           <div className="text-center py-20">
             <Search className="w-12 h-12 mx-auto mb-4 text-charcoal/15" />
-            <h3 className="font-heading text-xl font-semibold text-charcoal mb-2">No activities found</h3>
-            <p className="text-sm text-charcoal/50">Try adjusting your filters or searching for something else.</p>
+            <h3 className="font-heading text-xl font-semibold text-charcoal mb-2">No results found</h3>
+            <p className="text-sm text-charcoal/50">Try a different category, mood, or search term.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {activities.map((activity, i) => (
+            {results.map((place, i) => (
               <motion.div
-                key={activity.id}
+                key={place.placeId}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
               >
-                <ActivityCard activity={activity} />
+                <DiscoverPlaceCard place={place} />
               </motion.div>
             ))}
           </div>

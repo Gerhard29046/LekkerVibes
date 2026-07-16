@@ -1,67 +1,59 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { profileApi } from '@/api/profileApi';
 import { uploadsApi } from '@/api/uploadsApi';
-import { locationApi } from '@/api/locationApi';
-import { X, Upload, Loader2 } from 'lucide-react';
+import { useLocation } from '@/hooks/useLocation.jsx';
+import { X, Upload, Loader2, Trash2 } from 'lucide-react';
 
-const AGE_RANGES = ['18-24', '25-34', '35-44', '45-54', '55+'];
-
-export default function ProfileEditor({ profile, interests, onSave, onClose }) {
+export default function ProfileEditor({ profile, interests, currentUser, onSave, onClose }) {
+  const { cities } = useLocation();
   const [form, setForm] = useState({
-    display_name: profile?.display_name || '',
-    username: profile?.username || '',
+    displayName: profile?.displayName || '',
     bio: profile?.bio || '',
-    location_id: profile?.location?.id || '',
-    pronouns: profile?.pronouns || '',
-    age_range: profile?.age_range || '',
-    interest_ids: (profile?.interests || []).map(i => i.id),
-    avatar_media_id: null,
-    cover_media_id: null,
-    alcohol_free_pref: profile?.alcohol_free_pref || false,
-    family_friendly_pref: profile?.family_friendly_pref || false,
+    city: profile?.city || '',
+    interests: profile?.interests || [],
+    photoURL: profile?.photoURL || null,
+    coverURL: profile?.coverURL || null,
   });
-  const [avatarPreview, setAvatarPreview] = useState(profile?.avatar_url || '');
-  const [coverPreview, setCoverPreview] = useState(profile?.cover_url || '');
-  const [locations, setLocations] = useState([]);
+  const [photoPreview, setPhotoPreview] = useState(profile?.photoURL || '');
+  const [coverPreview, setCoverPreview] = useState(profile?.coverURL || '');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(null);
-
-  useEffect(() => {
-    locationApi.popular().then(result => setLocations(result.data)).catch(() => setLocations([]));
-  }, []);
+  const [uploadError, setUploadError] = useState('');
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
-  const toggleInterest = (id) => {
-    set('interest_ids', form.interest_ids.includes(id)
-      ? form.interest_ids.filter(x => x !== id)
-      : [...form.interest_ids, id]);
+  const toggleInterest = (name) => {
+    set('interests', form.interests.includes(name)
+      ? form.interests.filter(x => x !== name)
+      : [...form.interests, name]);
   };
 
-  const handleFileUpload = async (e, mediaField, previewSetter) => {
+  const handleUpload = async (e, field, previewSetter) => {
     const file = e.target.files[0];
     if (!file) return;
-    setUploading(mediaField);
+    setUploading(field);
+    setUploadError('');
     try {
-      const media = await uploadsApi.upload(file);
-      set(mediaField, media.id);
-      previewSetter(media.url);
+      const url = await uploadsApi.upload(file, `users/${currentUser.uid}`);
+      set(field, url);
+      previewSetter(url);
+    } catch (err) {
+      setUploadError(err.message || 'Upload failed — please try a different image.');
     } finally {
       setUploading(null);
     }
   };
 
+  const handleRemovePhoto = () => {
+    set('photoURL', null);
+    setPhotoPreview('');
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      const { interest_ids, ...profileFields } = form;
-      if (!profileFields.avatar_media_id) delete profileFields.avatar_media_id;
-      if (!profileFields.cover_media_id) delete profileFields.cover_media_id;
-      if (!profileFields.location_id) profileFields.location_id = null;
-
-      await profileApi.update(profileFields);
-      await profileApi.syncInterests(interest_ids);
-      const updated = await profileApi.get();
+      await profileApi.update(currentUser.uid, form);
+      const updated = await profileApi.get(currentUser.uid);
       onSave(updated);
     } finally {
       setSaving(false);
@@ -84,20 +76,25 @@ export default function ProfileEditor({ profile, interests, onSave, onClose }) {
             <div>
               <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-1.5">Profile Photo</label>
               <div className="relative h-24 rounded-xl overflow-hidden bg-sand border border-border cursor-pointer group">
-                {avatarPreview
-                  ? <img src={avatarPreview} alt="Profile" className="w-full h-full object-cover" />
+                {photoPreview
+                  ? <img src={photoPreview} alt="Profile" className="w-full h-full object-cover" />
                   : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-ocean/20 to-teal/20">
                       <Upload className="w-6 h-6 text-charcoal/40" />
                     </div>
                 }
-                <input type="file" accept="image/*" onChange={e => handleFileUpload(e, 'avatar_media_id', setAvatarPreview)}
+                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => handleUpload(e, 'photoURL', setPhotoPreview)}
                   className="absolute inset-0 opacity-0 cursor-pointer" />
-                {uploading === 'avatar_media_id' && (
+                {uploading === 'photoURL' && (
                   <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                     <Loader2 className="w-5 h-5 text-white animate-spin" />
                   </div>
                 )}
               </div>
+              {photoPreview && (
+                <button type="button" onClick={handleRemovePhoto} className="mt-1.5 flex items-center gap-1 text-xs text-coral font-medium">
+                  <Trash2 className="w-3 h-3" /> Remove photo
+                </button>
+              )}
             </div>
             <div>
               <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-1.5">Cover Photo</label>
@@ -108,9 +105,9 @@ export default function ProfileEditor({ profile, interests, onSave, onClose }) {
                       <Upload className="w-6 h-6 text-charcoal/40" />
                     </div>
                 }
-                <input type="file" accept="image/*" onChange={e => handleFileUpload(e, 'cover_media_id', setCoverPreview)}
+                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => handleUpload(e, 'coverURL', setCoverPreview)}
                   className="absolute inset-0 opacity-0 cursor-pointer" />
-                {uploading === 'cover_media_id' && (
+                {uploading === 'coverURL' && (
                   <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                     <Loader2 className="w-5 h-5 text-white animate-spin" />
                   </div>
@@ -118,22 +115,17 @@ export default function ProfileEditor({ profile, interests, onSave, onClose }) {
               </div>
             </div>
           </div>
+          {uploadError && <p className="text-xs text-coral -mt-3">{uploadError}</p>}
 
-          {/* Basic fields */}
-          {[
-            { label: 'Display Name', key: 'display_name', placeholder: 'Your name' },
-            { label: 'Username', key: 'username', placeholder: 'username' },
-          ].map(f => (
-            <div key={f.key}>
-              <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-1.5">{f.label}</label>
-              <input
-                value={form[f.key]}
-                onChange={e => set(f.key, e.target.value)}
-                placeholder={f.placeholder}
-                className="w-full px-4 py-2.5 rounded-xl border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean/30"
-              />
-            </div>
-          ))}
+          <div>
+            <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-1.5">Display Name</label>
+            <input
+              value={form.displayName}
+              onChange={e => set('displayName', e.target.value)}
+              placeholder="Your name"
+              className="w-full px-4 py-2.5 rounded-xl border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean/30"
+            />
+          </div>
 
           <div>
             <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-1.5">Bio</label>
@@ -146,31 +138,12 @@ export default function ProfileEditor({ profile, interests, onSave, onClose }) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-1.5">Location</label>
-              <select value={form.location_id} onChange={e => set('location_id', e.target.value ? Number(e.target.value) : '')}
-                className="w-full px-4 py-2.5 rounded-xl border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean/30">
-                <option value="">Select location</option>
-                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-1.5">Pronouns</label>
-              <select value={form.pronouns} onChange={e => set('pronouns', e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean/30">
-                <option value="">Prefer not to say</option>
-                {['he/him', 'she/her', 'they/them', 'he/they', 'she/they'].map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-          </div>
-
           <div>
-            <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-1.5">Age range</label>
-            <select value={form.age_range} onChange={e => set('age_range', e.target.value)}
+            <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-1.5">City</label>
+            <select value={form.city} onChange={e => set('city', e.target.value)}
               className="w-full px-4 py-2.5 rounded-xl border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-ocean/30">
-              <option value="">Prefer not to say</option>
-              {AGE_RANGES.map(a => <option key={a} value={a}>{a}</option>)}
+              <option value="">Select city</option>
+              {cities.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
 
@@ -182,9 +155,9 @@ export default function ProfileEditor({ profile, interests, onSave, onClose }) {
                 <button
                   key={i.id}
                   type="button"
-                  onClick={() => toggleInterest(i.id)}
+                  onClick={() => toggleInterest(i.name)}
                   className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                    form.interest_ids.includes(i.id)
+                    form.interests.includes(i.name)
                       ? 'bg-ocean text-white border-ocean'
                       : 'bg-white text-charcoal/60 border-border hover:border-ocean/30'
                   }`}
@@ -194,28 +167,13 @@ export default function ProfileEditor({ profile, interests, onSave, onClose }) {
               ))}
             </div>
           </div>
-
-          {/* Prefs */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block">Preferences</label>
-            {[
-              { key: 'alcohol_free_pref', label: 'Prefer alcohol-free activities' },
-              { key: 'family_friendly_pref', label: 'Prefer family-friendly activities' },
-            ].map(p => (
-              <label key={p.key} className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" checked={form[p.key]} onChange={e => set(p.key, e.target.checked)}
-                  className="w-4 h-4 rounded accent-ocean" />
-                <span className="text-sm text-charcoal">{p.label}</span>
-              </label>
-            ))}
-          </div>
         </div>
 
         <div className="px-6 py-4 border-t border-sand bg-white flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-charcoal hover:bg-sand transition-colors">
             Cancel
           </button>
-          <button onClick={handleSave} disabled={saving}
+          <button onClick={handleSave} disabled={saving || uploading}
             className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-ocean to-teal text-white text-sm font-semibold hover:shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {saving ? 'Saving...' : 'Save Profile'}
