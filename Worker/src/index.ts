@@ -5,6 +5,7 @@ import { adminRoute } from './routes/admin';
 import { moderationRoute } from './routes/moderation';
 import { notificationsRoute } from './routes/notifications';
 import { discoverRoute } from './routes/discover';
+import { placesRoute } from './routes/places';
 import { relationshipsRoute } from './routes/relationships';
 import type { Env, Variables } from './types/env';
 
@@ -26,6 +27,7 @@ v1.route('/', adminRoute);
 v1.route('/', moderationRoute);
 v1.route('/', notificationsRoute);
 v1.route('/', discoverRoute);
+v1.route('/', placesRoute);
 v1.route('/', relationshipsRoute);
 
 app.route('/v1', v1);

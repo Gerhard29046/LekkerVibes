@@ -142,6 +142,37 @@ html.lv-pause-marquees .animate-float {
   animation-play-state: paused !important;
 }
 
+/* Sponsored Spotlight carousel (Swiper) — "peeking" layout: the active
+   slide is fully visible, the previous/next ones are visible but muted so
+   the user can see more content is coming either side. */
+.spotlight-swiper .swiper-slide {
+  width: min(76vw, 980px);
+  opacity: 0.34;
+  transform: scale(0.91);
+  transition: opacity 700ms ease, transform 700ms ease, filter 700ms ease;
+  filter: saturate(0.65);
+}
+.spotlight-swiper .swiper-slide-active {
+  opacity: 1;
+  transform: scale(1);
+  filter: saturate(1);
+}
+.spotlight-swiper .swiper-slide-prev,
+.spotlight-swiper .swiper-slide-next {
+  opacity: 0.56;
+  transform: scale(0.94);
+}
+@media (max-width: 640px) {
+  .spotlight-swiper .swiper-slide {
+    width: 90vw;
+  }
+}
+@media (min-width: 641px) and (max-width: 1024px) {
+  .spotlight-swiper .swiper-slide {
+    width: 82vw;
+  }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
