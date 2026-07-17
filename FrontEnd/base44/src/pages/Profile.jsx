@@ -13,32 +13,28 @@ import { socialLinksApi } from '@/api/socialLinksApi';
 import { useAuth } from '@/lib/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile.jsx';
 import { getProfileTheme, colorForLabel } from '@/lib/profileThemes';
-import { Link, useNavigate } from 'react-router-dom';
+import { useAccessibilityPrefs } from '@/lib/accessibilityPrefs';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
+import ProfileTabBar, { PROFILE_TABS } from '@/components/profile/ProfileTabBar';
 import {
-  Edit2, MapPin, BadgeCheck, ShieldCheck, Calendar, Users, Bookmark, CalendarClock,
-  Settings, Briefcase, GraduationCap, Languages, Instagram, Facebook, Link2, ChevronRight,
-  Activity as ActivityIcon, Camera, Loader2, X, LayoutGrid, UserCheck, UserPlus, Image as ImageIcon,
-  Sparkles, Bell, BellOff,
+  Edit2, MapPin, BadgeCheck, ShieldCheck, Calendar, Users, CalendarClock,
+  Briefcase, GraduationCap, Languages, Instagram, Facebook, Link2, ChevronRight,
+  Activity as ActivityIcon, Camera, Loader2, X, UserCheck, UserPlus, Image as ImageIcon,
+  Sparkles, Star, Bell, BellOff,
 } from 'lucide-react';
 import moment from 'moment';
 import ProfileEditor from '@/components/profile/ProfileEditor';
 import CameraCapture from '@/components/profile/CameraCapture';
 
-const TABS = [
-  { id: 'Overview', icon: LayoutGrid },
-  { id: 'Communities', icon: Users },
-  { id: 'Following groups', icon: Bell },
-  { id: 'Events', icon: Calendar },
-  { id: 'Saved', icon: Bookmark },
-  { id: 'Activity', icon: ActivityIcon },
-];
+const VALID_TABS = [...PROFILE_TABS.map((t) => t.id)];
 
 export default function Profile() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const shouldReduceMotion = useReducedMotion();
+  const [searchParams] = useSearchParams();
+  const systemReduceMotion = useReducedMotion();
   const isMobile = useIsMobile();
   const [profile, setProfile] = useState(null);
   const [interests, setInterests] = useState([]);
@@ -50,12 +46,16 @@ export default function Profile() {
   const [followingCount, setFollowingCount] = useState(0);
   const [activity, setActivity] = useState([]);
   const [socialLinks, setSocialLinks] = useState({});
-  const [editOpen, setEditOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(searchParams.get('edit') === '1');
   const [cameraOpen, setCameraOpen] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
-  const [activeTab, setActiveTab] = useState('Overview');
+  const initialTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(VALID_TABS.includes(initialTab) ? initialTab : 'Overview');
+  const [interestsExpanded, setInterestsExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const coverInputRef = useRef(null);
+  const { prefs: accessibilityPrefs } = useAccessibilityPrefs(profile, user?.uid);
+  const shouldReduceMotion = systemReduceMotion || accessibilityPrefs.reduceMotion;
 
   const load = async () => {
     const [profileData, interestsData, savedItems, planItems, myClubs, myEvents, followers, following, activityItems, followedGroupsData] = await Promise.all([
@@ -164,7 +164,7 @@ export default function Profile() {
   return (
     <div className="min-h-screen bg-cream font-body relative overflow-hidden">
       {/* Ambient background motion — behind everything, never blocks interaction */}
-      <AmbientBackground reduceMotion={shouldReduceMotion || isMobile} />
+      <AmbientBackground reduceMotion={shouldReduceMotion || isMobile || accessibilityPrefs.disableParallax} />
 
       <Navbar />
 
@@ -206,17 +206,17 @@ export default function Profile() {
           initial={shouldReduceMotion ? false : { opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="relative -mt-14 sm:-mt-16 z-10 bg-white/95 rounded-[24px] border border-slate-200 shadow-[0_8px_30px_rgba(15,76,92,0.08)] p-5 sm:p-8"
+          className="relative -mt-14 sm:-mt-16 z-10 h-auto min-h-0 bg-white/95 rounded-[24px] border border-slate-200 shadow-[0_8px_30px_rgba(15,76,92,0.08)] px-5 py-6 sm:px-8 sm:py-8"
         >
-          <div className="flex flex-col lg:flex-row lg:items-start gap-6">
-            <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-5 -mt-14 sm:-mt-16">
-              {/* Avatar — the only circular element overlapping the cover, alongside this panel */}
+          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[120px_minmax(0,1fr)_240px] lg:gap-7">
+            {/* LEFT — profile photo */}
+            <div className="flex justify-center lg:justify-start -mt-14 sm:-mt-16 lg:-mt-12">
               <motion.div
                 initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.8, y: 30 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={shouldReduceMotion ? { duration: 0.3 } : { type: 'spring', stiffness: 180, damping: 18 }}
                 whileHover={shouldReduceMotion ? {} : { y: -4 }}
-                className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl border-4 border-cream overflow-hidden bg-gradient-to-br from-ocean to-teal flex items-center justify-center shadow-lg shrink-0 mx-auto sm:mx-0 transition-shadow hover:shadow-xl"
+                className="relative w-28 h-28 sm:w-32 sm:h-32 lg:w-[120px] lg:h-[120px] rounded-2xl border-4 border-cream overflow-hidden bg-gradient-to-br from-ocean to-teal flex items-center justify-center shadow-lg shrink-0 transition-shadow hover:shadow-xl"
               >
                 {profile?.photoURL
                   ? <img src={profile.photoURL} alt={displayName} className="w-full h-full object-cover" />
@@ -231,8 +231,10 @@ export default function Profile() {
                   <Camera className="w-4 h-4" />
                 </motion.button>
               </motion.div>
+            </div>
 
-              {/* Identity */}
+            {/* CENTRE — identity, bio, info boxes, interests, actions */}
+            <div className="min-w-0 text-center lg:text-left">
               <motion.div
                 variants={shouldReduceMotion ? undefined : {
                   hidden: {},
@@ -240,9 +242,8 @@ export default function Profile() {
                 }}
                 initial="hidden"
                 animate="show"
-                className="pb-1 min-w-0 text-center sm:text-left"
               >
-                <FadeLine reduceMotion={shouldReduceMotion} className="flex items-center justify-center sm:justify-start gap-2 mb-1 flex-wrap">
+                <FadeLine reduceMotion={shouldReduceMotion} className="flex items-center justify-center lg:justify-start gap-2 flex-wrap">
                   <h1 className="font-body text-2xl sm:text-3xl font-bold text-charcoal">{displayName}</h1>
                   {profile?.isVerified && (
                     <motion.span
@@ -255,9 +256,9 @@ export default function Profile() {
                   {profile?.photoVerified && <ShieldCheck className="w-5 h-5 shrink-0" style={{ color: theme.primary }} title="Photo verified live" />}
                 </FadeLine>
                 {profile?.username && (
-                  <FadeLine reduceMotion={shouldReduceMotion}><p className="text-sm text-charcoal/50 mb-1">@{profile.username}</p></FadeLine>
+                  <FadeLine reduceMotion={shouldReduceMotion}><p className="mt-1.5 text-sm text-charcoal/50">@{profile.username}</p></FadeLine>
                 )}
-                <FadeLine reduceMotion={shouldReduceMotion} className="flex flex-wrap justify-center sm:justify-start gap-x-4 gap-y-1 text-sm text-charcoal/60">
+                <FadeLine reduceMotion={shouldReduceMotion} className="flex flex-wrap justify-center lg:justify-start gap-x-4 gap-y-1 text-sm text-charcoal/60 mt-2">
                   {profile?.city && (
                     <span className="flex items-center gap-1"><MapPin className="w-4 h-4 text-coral" />{profile.city}</span>
                   )}
@@ -269,57 +270,90 @@ export default function Profile() {
                   )}
                 </FadeLine>
               </motion.div>
+
+              {(profile?.bio || profile?.interests?.length > 0 || profile?.work || profile?.education || profile?.languages?.length > 0 || socialLinks.instagram || socialLinks.facebook || socialLinks.website) && (
+                <div className="mt-[18px] grid gap-3 sm:grid-cols-2">
+                  {profile?.bio && (
+                    <ProfileInfoBox icon={Sparkles} label="About me" colour="coral" reduceMotion={shouldReduceMotion} fullWidth>
+                      {profile.bio}
+                    </ProfileInfoBox>
+                  )}
+                  {profile?.interests?.length > 0 && (
+                    <ProfileInfoBox icon={Star} label="My vibe" colour="lime" reduceMotion={shouldReduceMotion} fullWidth>
+                      <div className="flex flex-wrap gap-2">
+                        {(interestsExpanded ? profile.interests : visibleInterests).map((i, idx) => (
+                          <InterestChip key={i} label={i} index={idx} reduceMotion={shouldReduceMotion} chipStyle={profile?.chipStyle} />
+                        ))}
+                        {!interestsExpanded && extraInterests > 0 && (
+                          <button
+                            onClick={() => setInterestsExpanded(true)}
+                            className="px-3 py-1.5 rounded-full bg-white/70 text-xs font-bold text-charcoal/60 hover:text-charcoal transition-colors"
+                          >
+                            +{extraInterests} more
+                          </button>
+                        )}
+                      </div>
+                    </ProfileInfoBox>
+                  )}
+                  {profile?.work && (
+                    <ProfileInfoBox icon={Briefcase} label="Work" colour="teal" reduceMotion={shouldReduceMotion}>
+                      {profile.work}
+                    </ProfileInfoBox>
+                  )}
+                  {profile?.education && (
+                    <ProfileInfoBox icon={GraduationCap} label="Education" colour="sky" reduceMotion={shouldReduceMotion}>
+                      {profile.education}
+                    </ProfileInfoBox>
+                  )}
+                  {profile?.languages?.length > 0 && (
+                    <ProfileInfoBox icon={Languages} label="Languages" colour="peach" reduceMotion={shouldReduceMotion}>
+                      {profile.languages.join(', ')}
+                    </ProfileInfoBox>
+                  )}
+                  {(socialLinks.instagram || socialLinks.facebook || socialLinks.website) && (
+                    <ProfileInfoBox icon={Link2} label="Social links" colour="lavender" reduceMotion={shouldReduceMotion}>
+                      <div className="flex items-center gap-3">
+                        {socialLinks.instagram && <a href={socialLinks.instagram} target="_blank" rel="noopener noreferrer nofollow" className="hover:opacity-70 transition-opacity"><Instagram className="w-4 h-4" /></a>}
+                        {socialLinks.facebook && <a href={socialLinks.facebook} target="_blank" rel="noopener noreferrer nofollow" className="hover:opacity-70 transition-opacity"><Facebook className="w-4 h-4" /></a>}
+                        {socialLinks.website && <a href={socialLinks.website} target="_blank" rel="noopener noreferrer nofollow" className="hover:opacity-70 transition-opacity"><Link2 className="w-4 h-4" /></a>}
+                      </div>
+                    </ProfileInfoBox>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-4 flex flex-wrap items-center justify-center lg:justify-start gap-3">
+                <motion.button
+                  onClick={() => setEditOpen(true)}
+                  whileHover={shouldReduceMotion ? {} : { y: -2 }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-shadow hover:shadow-md"
+                  style={{ background: theme.primary }}
+                >
+                  <Edit2 className="w-3.5 h-3.5" /> Edit profile
+                </motion.button>
+              </div>
             </div>
 
-            {/* Vertical divider (desktop only) */}
-            <div className="hidden lg:block w-px self-stretch bg-sand mx-2" aria-hidden="true" />
+            {/* RIGHT — statistics, desktop */}
+            <aside className="hidden lg:block lg:border-l lg:border-stone-200 lg:pl-7">
+              <div className="flex flex-col gap-2.5">
+                {STATS.map((s, i) => (
+                  <StatCard key={s.label} stat={s} theme={theme} index={i} reduceMotion={shouldReduceMotion} />
+                ))}
+              </div>
+            </aside>
 
-            {/* Statistics — stay entirely inside this panel */}
-            <div className="grid grid-cols-2 lg:flex lg:flex-col gap-2.5 lg:w-48 shrink-0">
+            {/* Statistics, mobile */}
+            <div className="grid grid-cols-2 gap-3 lg:hidden">
               {STATS.map((s, i) => (
                 <StatCard key={s.label} stat={s} theme={theme} index={i} reduceMotion={shouldReduceMotion} />
               ))}
             </div>
           </div>
-
-          {/* Bio + interests */}
-          <div className="mt-5 pt-5 border-t border-sand">
-            {profile?.bio && <p className="text-sm text-charcoal/70 leading-relaxed max-w-xl mb-3 text-center sm:text-left">{profile.bio}</p>}
-            {visibleInterests.length > 0 && (
-              <div className="flex flex-wrap justify-center sm:justify-start gap-2 mb-3">
-                {visibleInterests.map((i, idx) => <InterestChip key={i} label={i} index={idx} reduceMotion={shouldReduceMotion} />)}
-                {extraInterests > 0 && (
-                  <span className="px-3 py-1 rounded-full bg-sand text-xs font-medium text-charcoal/60">+{extraInterests} more</span>
-                )}
-              </div>
-            )}
-            <div className="text-center sm:text-left">
-              <motion.button
-                onClick={() => setEditOpen(true)}
-                whileHover={shouldReduceMotion ? {} : { x: 2 }}
-                className="inline-flex items-center gap-1.5 text-sm font-semibold transition-colors"
-                style={{ color: theme.primary }}
-              >
-                <Edit2 className="w-3.5 h-3.5" /> Edit profile
-              </motion.button>
-            </div>
-          </div>
         </motion.div>
 
-        {/* Full-width tab bar */}
-        <div className="mt-8 mb-8 border-b-2 border-sand">
-          <div className="overflow-x-auto no-scrollbar">
-            <div className="grid grid-cols-7 min-w-[700px] lg:min-w-0 lg:w-full">
-              {TABS.map(tab => (
-                <TabButton key={tab.id} tab={tab} active={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} theme={theme} reduceMotion={shouldReduceMotion} />
-              ))}
-              <Link to="/settings"
-                className="relative flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-3 min-h-[68px] text-xs sm:text-sm font-bold whitespace-nowrap text-charcoal/50 hover:text-charcoal transition-colors">
-                <Settings className="w-4 h-4" /> Settings
-              </Link>
-            </div>
-          </div>
-        </div>
+        {/* Full-width tab bar — shared with Settings so both pages match exactly */}
+        <ProfileTabBar activeId={activeTab} theme={theme} reduceMotion={shouldReduceMotion} onTabSelect={setActiveTab} />
 
         <AnimatePresence mode="wait">
           <motion.div
@@ -372,7 +406,7 @@ export default function Profile() {
                   <Card title="My vibe" icon={Sparkles} subtitle="Top activities you enjoy" accent="coral" reduceMotion={shouldReduceMotion}>
                     {profile?.interests?.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
-                        {profile.interests.map((i, idx) => <InterestChip key={i} label={i} index={idx} reduceMotion={shouldReduceMotion} />)}
+                        {profile.interests.map((i, idx) => <InterestChip key={i} label={i} index={idx} reduceMotion={shouldReduceMotion} chipStyle={profile?.chipStyle} />)}
                       </div>
                     ) : (
                       <p className="text-sm text-charcoal/40">Add your interests from Edit profile.</p>
@@ -613,29 +647,6 @@ function StatCard({ stat, theme, index, reduceMotion }) {
   );
 }
 
-function TabButton({ tab, active, onClick, theme, reduceMotion }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`relative flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-3 min-h-[68px] text-xs sm:text-sm font-bold whitespace-nowrap transition-colors ${
-        active ? '' : 'text-charcoal/50 hover:text-charcoal'
-      }`}
-      style={active ? { color: theme.primary } : undefined}
-    >
-      <tab.icon className="w-4 h-4" style={active ? { color: theme.primary } : undefined} />
-      {tab.id}
-      {active && (
-        <motion.div
-          layoutId="profile-active-tab"
-          className="absolute inset-x-3 bottom-0 h-1 rounded-full"
-          style={{ backgroundColor: theme.primary }}
-          transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 35 }}
-        />
-      )}
-    </button>
-  );
-}
-
 function accentColor(accent) {
   if (typeof accent === 'object') return accent.primary;
   return getProfileTheme(accent).primary;
@@ -669,18 +680,47 @@ function Card({ title, icon: Icon, subtitle, action, accent, reduceMotion, child
   );
 }
 
-function InterestChip({ label, index, reduceMotion }) {
+// Bold, colour-blocked tile for a single fact in the profile header's centre
+// column (bio, vibe, work, education, languages, social links) — deliberately
+// louder than the plain <Card> above, to match the "vibe" mood-selector cards
+// elsewhere on the site rather than reading as loose floating text.
+function ProfileInfoBox({ icon: Icon, label, colour, reduceMotion, fullWidth, children }) {
+  const c = getProfileTheme(colour);
+  return (
+    <motion.div
+      whileHover={reduceMotion ? {} : { y: -4, scale: 1.015 }}
+      transition={{ type: 'spring', stiffness: 250, damping: 18 }}
+      className={`relative overflow-hidden rounded-2xl border-2 p-4 shadow-sm transition-shadow hover:shadow-lg text-left ${fullWidth ? 'sm:col-span-2' : ''}`}
+      style={{ borderColor: c.border, background: c.soft }}
+    >
+      <div className="absolute inset-y-0 left-0 w-1.5" style={{ background: c.primary }} aria-hidden="true" />
+      <div className="pl-3">
+        <div className="flex items-center gap-2 mb-1.5">
+          <Icon className="w-4 h-4 shrink-0" style={{ color: c.primary }} />
+          <span className="text-xs font-bold uppercase tracking-wide" style={{ color: c.text }}>{label}</span>
+        </div>
+        <div className="text-sm leading-6" style={{ color: c.text }}>{children}</div>
+      </div>
+    </motion.div>
+  );
+}
+
+function InterestChip({ label, index, reduceMotion, chipStyle = 'vibrant' }) {
   const color = colorForLabel(label);
+  const minimal = chipStyle === 'minimal';
   return (
     <motion.span
       initial={reduceMotion ? false : { opacity: 0, scale: 0.9 }}
       whileInView={{ opacity: 1, scale: 1 }}
       viewport={{ once: true }}
-      animate={reduceMotion ? {} : { y: [0, -3, 0] }}
+      animate={reduceMotion || minimal ? {} : { y: [0, -3, 0] }}
       transition={reduceMotion ? { duration: 0.2 } : { y: { duration: 2.5 + (index % 3) * 0.3, repeat: Infinity, ease: 'easeInOut', delay: index * 0.15 } }}
-      whileHover={reduceMotion ? {} : { scale: 1.08 }}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-default"
-      style={{ background: color.soft, color: color.text, border: `1px solid ${color.border}` }}
+      whileHover={reduceMotion ? {} : { y: -2, scale: 1.03 }}
+      whileTap={reduceMotion ? {} : { scale: 0.97 }}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm cursor-default"
+      style={minimal
+        ? { background: '#fff', color: color.text, border: `1.5px solid ${color.border}` }
+        : { background: color.soft, color: color.text, border: `1px solid ${color.border}` }}
     >
       {label}
     </motion.span>

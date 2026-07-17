@@ -96,6 +96,52 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Accessibility preference classes — toggled on <html> by
+   src/lib/accessibilityPrefs.js, applied globally regardless of which page
+   set them. Framer Motion animations are gated in JS via the reduceMotion
+   prop threaded through each page; these CSS rules are the belt-and-braces
+   fallback plus the effects that are plain CSS to begin with. */
+html.lv-reduce-motion *,
+html.lv-reduce-motion *::before,
+html.lv-reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+html.lv-larger-text {
+  font-size: 112%;
+}
+html.lv-increased-contrast {
+  --lv-charcoal: #000000;
+}
+html.lv-increased-contrast body {
+  color: #000;
+}
+html.lv-increased-contrast .text-charcoal\/70,
+html.lv-increased-contrast .text-charcoal\/60,
+html.lv-increased-contrast .text-charcoal\/50,
+html.lv-increased-contrast .text-charcoal\/40 {
+  color: rgba(0, 0, 0, 0.85) !important;
+}
+html.lv-increased-contrast .border-sand,
+html.lv-increased-contrast .border-slate-200,
+html.lv-increased-contrast .border-slate-100 {
+  border-color: rgba(0, 0, 0, 0.35) !important;
+}
+html.lv-stronger-focus *:focus-visible {
+  outline: 3px solid var(--lv-ocean) !important;
+  outline-offset: 2px !important;
+}
+html.lv-simplified-cards .card-hover {
+  box-shadow: none !important;
+  transform: none !important;
+}
+html.lv-pause-marquees [data-marquee],
+html.lv-pause-marquees .animate-float {
+  animation-play-state: paused !important;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

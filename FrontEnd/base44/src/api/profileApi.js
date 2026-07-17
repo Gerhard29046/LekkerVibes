@@ -8,8 +8,9 @@ import { db } from '@/lib/firebaseClient';
 // not a trust claim).
 const EDITABLE_FIELDS = [
   'displayName', 'bio', 'city', 'interests', 'photoURL', 'coverURL', 'photoVerified',
-  'username', 'work', 'education', 'languages', 'profileTheme',
+  'username', 'work', 'education', 'languages', 'profileTheme', 'chipStyle',
   'hasInstagram', 'hasFacebook', 'hasStrava', 'hasWebsite',
+  'phone', 'dateOfBirth', 'preferredLanguage',
 ];
 
 function pickEditable(data) {
@@ -21,6 +22,7 @@ function pickEditable(data) {
 // (Firestore rules fail closed on an unset `privacy` map, which is safe but
 // means nobody's followers/following list is readable until this exists).
 export const DEFAULT_PRIVACY = {
+  profileVisibility: 'everyone',
   cityVisibility: 'everyone',
   communitiesVisibility: 'followers',
   eventsVisibility: 'followers',
@@ -35,6 +37,11 @@ export const DEFAULT_PRIVACY = {
   educationVisibility: 'everyone',
   languagesVisibility: 'everyone',
   activityFeedEnabled: true,
+  followPermission: 'requests_open',
+  connectionPermission: 'anyone',
+  searchableProfile: true,
+  organiserRecommendations: true,
+  showExactLocation: false,
 };
 
 export const profileApi = {
@@ -49,6 +56,34 @@ export const profileApi = {
 
   updateNotificationPrefs(uid, notificationPrefs) {
     return updateDoc(doc(db, 'users', uid), { notificationPrefs, updatedAt: serverTimestamp() });
+  },
+
+  updateMessagePrefs(uid, messagePrefs) {
+    return updateDoc(doc(db, 'users', uid), { messagePrefs, updatedAt: serverTimestamp() });
+  },
+
+  updateCommunityPrefs(uid, communityPrefs) {
+    return updateDoc(doc(db, 'users', uid), { communityPrefs, updatedAt: serverTimestamp() });
+  },
+
+  updateGroupFollowPrefs(uid, groupFollowPrefs) {
+    return updateDoc(doc(db, 'users', uid), { groupFollowPrefs, updatedAt: serverTimestamp() });
+  },
+
+  updateDiscoveryPrefs(uid, discoveryPrefs) {
+    return updateDoc(doc(db, 'users', uid), { discoveryPrefs, updatedAt: serverTimestamp() });
+  },
+
+  updateLocationPrefs(uid, locationPrefs) {
+    return updateDoc(doc(db, 'users', uid), { locationPrefs, updatedAt: serverTimestamp() });
+  },
+
+  updateAccessibilityPrefs(uid, accessibilityPrefs) {
+    return updateDoc(doc(db, 'users', uid), { accessibilityPrefs, updatedAt: serverTimestamp() });
+  },
+
+  requestDataExport(uid) {
+    return updateDoc(doc(db, 'users', uid), { dataExportRequested: true, dataExportRequestedAt: serverTimestamp() });
   },
 
   // Always pass the FULL privacy object (read current, merge locally, then
