@@ -4,13 +4,14 @@ import { communitiesApi } from '@/api/communitiesApi';
 import { eventsApi } from '@/api/eventsApi';
 import { reportsApi } from '@/api/reportsApi';
 import { activityApi } from '@/api/activityApi';
+import { groupFollowApi } from '@/api/groupFollowApi';
 import { useAuth } from '@/lib/AuthContext';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 import ActivityCard from '@/components/landing/ActivityCard';
 import {
   ArrowLeft, MapPin, Users, Calendar, MessageCircle,
-  Shield, Share2, Flag, Loader2, Pencil
+  Shield, Share2, Flag, Loader2, Pencil, Bell
 } from 'lucide-react';
 import { FEATURES } from '@/lib/featureFlags';
 import ComingSoon from '@/components/ComingSoon';
@@ -24,6 +25,9 @@ export default function ClubDetail() {
   const [loading, setLoading] = useState(true);
   const [joinLoading, setJoinLoading] = useState(false);
   const [reported, setReported] = useState(false);
+  const [following, setFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
 
   const load = () => {
     communitiesApi.get(id, user?.uid)
@@ -34,6 +38,8 @@ export default function ClubDetail() {
       .then(result => setActivities(result || []))
       .catch(() => setClub(null))
       .finally(() => setLoading(false));
+    groupFollowApi.followerCount(id).then(setFollowerCount).catch(() => {});
+    if (user) groupFollowApi.isFollowing(user.uid, id).then(setFollowing).catch(() => {});
   };
 
   useEffect(() => {
@@ -101,6 +107,27 @@ export default function ClubDetail() {
     }
   };
 
+  const handleFollowToggle = async () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    setFollowLoading(true);
+    try {
+      if (following) {
+        await groupFollowApi.unfollow(user.uid, club.id);
+        setFollowing(false);
+        setFollowerCount((c) => Math.max(c - 1, 0));
+      } else {
+        await groupFollowApi.follow(user.uid, club.id);
+        setFollowing(true);
+        setFollowerCount((c) => c + 1);
+      }
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
   const handleReport = async () => {
     if (!isAuthenticated) {
       navigate('/login');
@@ -157,6 +184,10 @@ export default function ClubDetail() {
                 <Users className="w-4 h-4 text-ocean" />
                 <span className="text-sm font-semibold text-charcoal">{club.memberCount} members</span>
               </div>
+              <div className="bg-white rounded-xl px-5 py-3 border border-sand flex items-center gap-2">
+                <Bell className="w-4 h-4 text-teal" />
+                <span className="text-sm font-semibold text-charcoal">{followerCount} following</span>
+              </div>
               {club.city && (
                 <div className="bg-white rounded-xl px-5 py-3 border border-sand flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-coral" />
@@ -211,6 +242,17 @@ export default function ClubDetail() {
                 }`}
               >
                 {joinLoading ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : isMember ? 'Leave Community' : 'Join Community'}
+              </button>
+              <button
+                onClick={handleFollowToggle}
+                disabled={followLoading}
+                className={`w-full py-2.5 font-semibold rounded-xl transition-all mb-3 text-sm disabled:opacity-60 flex items-center justify-center gap-2 ${
+                  following ? 'bg-teal/10 text-teal hover:bg-teal/20' : 'border border-sand text-charcoal hover:bg-sand'
+                }`}
+                title="Get updates from this community without joining"
+              >
+                <Bell className={`w-4 h-4 ${following ? 'fill-teal/20' : ''}`} />
+                {followLoading ? '...' : following ? 'Following updates' : 'Follow for updates'}
               </button>
               {isMember && (
                 <Link to={`/chat/${club.id}`} className="w-full py-3 bg-ocean/10 text-ocean font-semibold rounded-xl hover:bg-ocean/20 transition-colors text-sm mb-4 flex items-center justify-center gap-2">

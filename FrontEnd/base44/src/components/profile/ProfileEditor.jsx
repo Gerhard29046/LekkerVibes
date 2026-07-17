@@ -3,8 +3,9 @@ import { profileApi } from '@/api/profileApi';
 import { uploadsApi } from '@/api/uploadsApi';
 import { socialLinksApi, PLATFORMS } from '@/api/socialLinksApi';
 import { useLocation } from '@/hooks/useLocation.jsx';
-import { X, Upload, Loader2, Trash2, Camera } from 'lucide-react';
+import { X, Upload, Loader2, Trash2, Camera, Check } from 'lucide-react';
 import CameraCapture from './CameraCapture';
+import { PROFILE_THEMES, DEFAULT_PROFILE_THEME } from '@/lib/profileThemes';
 
 const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', strava: 'Strava', website: 'Website' };
 
@@ -22,6 +23,7 @@ export default function ProfileEditor({ profile, interests, currentUser, onSave,
     photoURL: profile?.photoURL || null,
     photoVerified: profile?.photoVerified || false,
     coverURL: profile?.coverURL || null,
+    profileTheme: profile?.profileTheme || DEFAULT_PROFILE_THEME,
   });
   const [socialUrls, setSocialUrls] = useState({});
   const [socialLoaded, setSocialLoaded] = useState(false);
@@ -118,7 +120,7 @@ export default function ProfileEditor({ profile, interests, currentUser, onSave,
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-cream w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-sand bg-white">
-          <h2 className="font-heading font-bold text-lg text-charcoal">Edit Profile</h2>
+          <h2 className="font-body font-bold text-lg text-charcoal">Edit Profile</h2>
           <button onClick={onClose} className="p-2 hover:bg-sand rounded-lg transition-colors">
             <X className="w-5 h-5" />
           </button>
@@ -246,6 +248,28 @@ export default function ProfileEditor({ profile, interests, currentUser, onSave,
                   }`}
                 >
                   {i.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Profile accent colour */}
+          <div>
+            <label className="text-xs font-semibold text-charcoal/60 uppercase tracking-wide block mb-2">
+              Profile accent colour
+            </label>
+            <div className="flex flex-wrap gap-2.5">
+              {Object.entries(PROFILE_THEMES).map(([key, theme]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => set('profileTheme', key)}
+                  aria-label={theme.label}
+                  aria-pressed={form.profileTheme === key}
+                  className="w-9 h-9 rounded-full flex items-center justify-center transition-transform hover:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  style={{ backgroundColor: theme.primary }}
+                >
+                  {form.profileTheme === key && <Check className="w-4 h-4 text-white" />}
                 </button>
               ))}
             </div>

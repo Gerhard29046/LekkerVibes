@@ -61,7 +61,7 @@ export default function CameraCapture({ folder, onCaptured, onClose }) {
     <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
       <div className="bg-cream w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-sand bg-white">
-          <h3 className="font-heading font-semibold text-charcoal flex items-center gap-2">
+          <h3 className="font-body font-semibold text-charcoal flex items-center gap-2">
             <Camera className="w-4 h-4 text-ocean" /> Take a live photo
           </h3>
           <button onClick={onClose} className="p-1.5 hover:bg-sand rounded-lg transition-colors">

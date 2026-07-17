@@ -67,6 +67,15 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == uid;
       }
 
+      // Mirror of communities/{id}/followers/{uid} — "groups I follow for
+      // updates" without necessarily being a member. Self-only; not the
+      // source of truth (that's the community's own followers subcollection,
+      // which is what follower counts read from) — this is purely a
+      // reverse-lookup index for the profile's "Following groups" tab.
+      match /followedGroups/{communityId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
       // Private block list — self-only, never publicly readable. Blocking
       // itself (with its cross-user cascade: revoke follow relationships,
       // pending requests, social-access grants) is a Worker operation — see
@@ -282,6 +291,20 @@ service cloud.firestore {
         allow update: if request.auth != null && request.auth.uid != uid
                       && (get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId == request.auth.uid
                           || get(/databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid)).data.role == 'organiser');
+      }
+
+      // "Following" a community/group is a lightweight public subscription
+      // for updates — distinct from `members` (active participation). No
+      // approval needed (unlike following a *person*, see followRequests
+      // above): communities are public entities, not private individuals,
+      // so a plain self-authorized create/delete is enough. Mirrored at
+      // users/{uid}/followedGroups/{communityId} below for the "groups I
+      // follow" list — two independent writes, not atomic (same acceptable
+      // small-inconsistency tradeoff used elsewhere in this file).
+      match /followers/{uid} {
+        allow read: if true;
+        allow create, update: if request.auth != null && request.auth.uid == uid;
+        allow delete: if request.auth != null && request.auth.uid == uid;
       }
     }
 

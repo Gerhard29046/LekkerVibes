@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   EmailAuthProvider,
   reauthenticateWithCredential,
@@ -90,7 +90,7 @@ export default function Settings() {
         <Link to="/profile" className="flex items-center gap-1.5 text-sm text-charcoal/60 hover:text-charcoal mb-6 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back to profile
         </Link>
-        <h1 className="font-heading text-2xl font-bold text-charcoal mb-6">Settings</h1>
+        <h1 className="font-body text-2xl font-bold text-charcoal mb-6">Settings</h1>
 
         <div className="space-y-6">
           <Section title="Profile" icon={CheckCircle2}>
@@ -192,7 +192,7 @@ export default function Settings() {
 function Section({ title, icon: Icon, children }) {
   return (
     <div className="bg-white rounded-2xl p-5 border border-sand">
-      <h3 className="font-heading font-semibold text-charcoal text-sm mb-4 flex items-center gap-2">
+      <h3 className="font-body font-semibold text-charcoal text-sm mb-4 flex items-center gap-2">
         <Icon className="w-4 h-4 text-ocean" /> {title}
       </h3>
       {children}

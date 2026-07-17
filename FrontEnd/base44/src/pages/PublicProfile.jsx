@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, Navigate, useNavigate } from 'react-router-dom';
 import { profileApi } from '@/api/profileApi';
 import { communitiesApi } from '@/api/communitiesApi';
@@ -81,7 +81,7 @@ export default function PublicProfile() {
       <div className="min-h-screen bg-cream">
         <Navbar />
         <div className="pt-20 flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-          <h2 className="font-heading text-2xl font-bold text-charcoal mb-2">Sign in to view this profile</h2>
+          <h2 className="font-body text-2xl font-bold text-charcoal mb-2">Sign in to view this profile</h2>
           <p className="text-sm text-charcoal/60 mb-4">Member profiles are visible to signed-in LekkerVibes members.</p>
           <Link to="/login" className="text-ocean text-sm font-medium">Log in</Link>
         </div>
@@ -105,7 +105,7 @@ export default function PublicProfile() {
       <div className="min-h-screen bg-cream">
         <Navbar />
         <div className="pt-20 flex flex-col items-center justify-center min-h-[60vh]">
-          <h2 className="font-heading text-2xl font-bold text-charcoal mb-2">Member not found</h2>
+          <h2 className="font-body text-2xl font-bold text-charcoal mb-2">Member not found</h2>
           <Link to="/" className="text-ocean text-sm font-medium">Back home</Link>
         </div>
       </div>
@@ -207,7 +207,7 @@ export default function PublicProfile() {
           <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-4 border-cream overflow-hidden bg-gradient-to-br from-ocean to-teal flex items-center justify-center shadow-lg">
             {profile.photoURL
               ? <img src={profile.photoURL} alt={displayName} className="w-full h-full object-cover" />
-              : <span className="text-white font-heading font-bold text-xl">{initials}</span>
+              : <span className="text-white font-body font-bold text-xl">{initials}</span>
             }
           </div>
 
@@ -231,7 +231,7 @@ export default function PublicProfile() {
 
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-1">
-            <h1 className="font-heading text-2xl font-bold text-charcoal">{displayName}</h1>
+            <h1 className="font-body text-2xl font-bold text-charcoal">{displayName}</h1>
             {profile.isVerified && <BadgeCheck className="w-5 h-5 text-teal" title="Verified account" />}
             {profile.photoVerified && <ShieldCheck className="w-5 h-5 text-ocean" title="Photo verified live" />}
           </div>
@@ -263,7 +263,7 @@ export default function PublicProfile() {
         {/* Social links — never shown until an approved reveal grant exists */}
         {availablePlatforms.length > 0 && (
           <div className="bg-white rounded-2xl p-5 border border-sand mb-6">
-            <h3 className="font-heading font-semibold text-charcoal mb-3 flex items-center gap-2">
+            <h3 className="font-body font-semibold text-charcoal mb-3 flex items-center gap-2">
               <Lock className="w-4 h-4 text-charcoal/40" /> Social links
             </h3>
             <div className="flex flex-wrap gap-2 mb-3">
@@ -297,7 +297,7 @@ export default function PublicProfile() {
 
         {clubs.length > 0 && (
           <div className="mb-8">
-            <h3 className="font-heading font-semibold text-charcoal mb-3 flex items-center gap-2">
+            <h3 className="font-body font-semibold text-charcoal mb-3 flex items-center gap-2">
               <Users className="w-4 h-4 text-teal" /> Communities
             </h3>
             <div className="flex flex-wrap gap-2">
@@ -312,7 +312,7 @@ export default function PublicProfile() {
 
         {upcomingEvents.length > 0 && (
           <div className="mb-12">
-            <h3 className="font-heading font-semibold text-charcoal mb-3 flex items-center gap-2">
+            <h3 className="font-body font-semibold text-charcoal mb-3 flex items-center gap-2">
               <Calendar className="w-4 h-4 text-ocean" /> Upcoming public events
             </h3>
             <div className="space-y-2">

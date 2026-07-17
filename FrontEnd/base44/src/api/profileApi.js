@@ -8,7 +8,7 @@ import { db } from '@/lib/firebaseClient';
 // not a trust claim).
 const EDITABLE_FIELDS = [
   'displayName', 'bio', 'city', 'interests', 'photoURL', 'coverURL', 'photoVerified',
-  'username', 'work', 'education', 'languages',
+  'username', 'work', 'education', 'languages', 'profileTheme',
   'hasInstagram', 'hasFacebook', 'hasStrava', 'hasWebsite',
 ];
 
