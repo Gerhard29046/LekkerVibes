@@ -222,6 +222,83 @@ html.lv-pause-marquees .animate-float {
     0 0 38px rgba(45, 212, 191, 0.28);
 }
 
+/* Final CTA + footer zone (Cape Town homepage only) — a distinct, slightly
+   darker teal than the page's .cape-town-theme wash above it, so the last
+   three surfaces (outer bg / CTA card / footer) read as three separate
+   depths instead of one flat dark-teal block. The transition strip's
+   bottom stop matches Footer.jsx's bg-charcoal (#1F2933) exactly so the
+   handoff into that sibling component is seamless. */
+.cta-outer-bg {
+  background:
+    radial-gradient(circle at 18% 35%, rgba(125, 211, 252, 0.07), transparent 32%),
+    linear-gradient(180deg, #103038 0%, #0F3038 100%);
+}
+.cta-footer-transition {
+  background: linear-gradient(to bottom, #0F3038 0%, #172C35 48%, #1F2933 100%);
+}
+
+/* CTA card — brighter/richer than the outer background so it stands out,
+   with a warm coral accent reserved for the primary action only. */
+.cta-card {
+  background:
+    radial-gradient(circle at 78% 28%, rgba(125, 211, 252, 0.18), transparent 34%),
+    linear-gradient(135deg, #164E63 0%, #116B72 55%, #0F8A7E 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: transform 320ms ease, border-color 320ms ease, box-shadow 320ms ease;
+}
+.cta-card:hover {
+  transform: translateY(-3px) scale(1.005);
+  border-color: rgba(255, 255, 255, 0.24);
+  box-shadow: 0 36px 96px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.cta-btn-primary {
+  background: linear-gradient(135deg, #F97366, #FB806B);
+  box-shadow: 0 12px 30px rgba(249, 115, 102, 0.28);
+  transition: transform 280ms ease, box-shadow 280ms ease;
+}
+.cta-btn-primary:hover {
+  transform: translateY(-3px) scale(1.025);
+  box-shadow: 0 20px 44px rgba(249, 115, 102, 0.42);
+}
+.cta-btn-primary:hover .cta-arrow {
+  transform: translateX(4px);
+}
+.cta-arrow {
+  transition: transform 280ms ease;
+}
+.cta-btn-secondary {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #F8FAFC;
+  transition: background 250ms ease, border-color 250ms ease, transform 250ms ease;
+}
+.cta-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(125, 211, 252, 0.7);
+  transform: translateY(-3px);
+}
+
+/* Footer links — small rightward nudge + sky-blue on hover, with a small
+   arrow that fades in rather than always being visible. */
+.footer-link {
+  transition: color 220ms ease, transform 220ms ease;
+}
+.footer-link:hover {
+  color: #7DD3FC;
+  transform: translateX(2px);
+}
+.footer-link-arrow {
+  display: inline-block;
+  opacity: 0;
+  transform: translateX(-2px);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+.footer-link:hover .footer-link-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

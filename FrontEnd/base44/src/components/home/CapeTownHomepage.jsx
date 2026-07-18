@@ -50,7 +50,18 @@ export default function CapeTownHomepage() {
             <ClubsSection />
           </div>
         </section>
-        <CTASection />
+
+        {/* The final CTA + hand-off into the (shared, sitewide) Footer gets
+            its own slightly darker background than the ambient theme above
+            — otherwise the outer background, CTA card and footer all read
+            as the same flat teal. The transition strip's bottom colour
+            matches Footer.jsx's bg-charcoal exactly so the seam into that
+            sibling component (rendered by Home.jsx, just after this one)
+            is invisible. */}
+        <div className="relative cta-outer-bg">
+          <CTASection />
+          <div className="h-16 sm:h-24 cta-footer-transition" aria-hidden="true" />
+        </div>
       </div>
     </div>
   );
