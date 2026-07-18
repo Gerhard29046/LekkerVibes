@@ -299,6 +299,119 @@ html.lv-pause-marquees .animate-float {
   transform: translateX(0);
 }
 
+/* Discover page dark theme — scoped to a wrapping class (not :root) since
+   the hex values here are deliberately distinct from the global --lv-teal/
+   --lv-coral brand tokens used elsewhere (e.g. the CTA card, scrollbar);
+   redeclaring them at :root would silently recolour every other page.
+   Named so the same class can be reused as-is when Communities/Area pages
+   get this treatment later. */
+.discover-theme {
+  --lv-bg-base: #0a2e2e;
+  --lv-bg-panel: #0f3d3a;
+  --lv-teal: #1d9e75;
+  --lv-teal-light: #9fe1cb;
+  --lv-coral: #d85a30;
+  --lv-text-onteal-muted: #7fb3aa;
+  --lv-border-onteal: rgba(255, 255, 255, 0.12);
+  --lv-border-onteal-strong: rgba(255, 255, 255, 0.25);
+  background: var(--lv-bg-base);
+}
+
+.discover-card {
+  background: var(--lv-bg-panel);
+  border: 0.5px solid var(--lv-border-onteal);
+  transition: transform 250ms ease, box-shadow 250ms ease, border-color 250ms ease;
+}
+.discover-card:hover {
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+  border-color: var(--lv-border-onteal-strong);
+}
+.discover-card-photo {
+  transition: transform 400ms ease;
+}
+.discover-card:hover .discover-card-photo {
+  transform: scale(1.05);
+}
+
+.discover-pill {
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+.discover-pill-active {
+  background: var(--lv-teal);
+  color: #fff;
+  border: 0.5px solid var(--lv-teal);
+}
+.discover-pill-inactive {
+  background: transparent;
+  color: var(--lv-teal-light);
+  border: 0.5px solid var(--lv-border-onteal-strong);
+}
+.discover-pill-inactive:hover {
+  border-color: var(--lv-teal-light);
+  color: #fff;
+}
+
+.discover-mood-pill {
+  background: rgba(255, 255, 255, 0.12);
+  border: 0.5px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.discover-mood-pill:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.discover-mood-pill-active {
+  background: var(--lv-coral);
+  border-color: var(--lv-coral);
+}
+
+.discover-search-panel {
+  transition: box-shadow 200ms ease;
+}
+.discover-search-panel:focus-within {
+  box-shadow: 0 0 0 4px rgba(29, 158, 117, 0.22);
+}
+
+.discover-btn-ghost {
+  background: rgba(255, 255, 255, 0.03);
+  border: 0.5px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  transition: background-color 200ms ease, border-color 200ms ease;
+}
+.discover-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.discover-btn-ghost-active {
+  background: var(--lv-teal);
+  border-color: var(--lv-teal);
+}
+.discover-btn-accent {
+  background: var(--lv-teal);
+  color: #fff;
+  transition: filter 200ms ease, box-shadow 200ms ease;
+}
+.discover-btn-accent:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 6px 16px rgba(29, 158, 117, 0.35);
+}
+.discover-btn-nearme {
+  background: var(--lv-coral);
+  color: #fff;
+  transition: filter 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
+}
+.discover-btn-nearme:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 6px 16px rgba(216, 90, 48, 0.35);
+}
+.discover-btn-nearme-active {
+  background: var(--lv-teal);
+}
+.discover-btn-nearme-active:hover {
+  box-shadow: 0 6px 16px rgba(29, 158, 117, 0.35);
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

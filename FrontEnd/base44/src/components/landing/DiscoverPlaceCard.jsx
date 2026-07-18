@@ -6,6 +6,7 @@ import { visitedPlacesApi } from '@/api/visitedPlacesApi';
 import { activityApi } from '@/api/activityApi';
 import { useAuth } from '@/lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { getCategoryTheme } from '@/lib/categoryTheme';
 
 // Google Places results, rendered as LekkerVibes cards — never a bare list
 // of Google search results. "Place"/"Club"/"Venue"/"Community"/"Activity
@@ -84,76 +85,85 @@ export default function DiscoverPlaceCard({ place }) {
 
   // Never invent a website — fall back to the Google Maps listing itself.
   const websiteHref = place.websiteUrl || place.googleMapsUrl;
+  const categoryTheme = getCategoryTheme(place.category);
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden border border-sand/80 shadow-sm flex flex-col">
-      <div className="relative aspect-[4/3] overflow-hidden">
-        <img src={imageSrc} alt={place.name} className="w-full h-full object-cover" loading="lazy" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+    <div className="discover-card rounded-xl overflow-hidden flex flex-col">
+      <div className="discover-card-photo-wrap relative aspect-[4/3] overflow-hidden">
+        <img
+          src={imageSrc}
+          alt={place.name}
+          loading="lazy"
+          className="discover-card-photo w-full h-full object-cover"
+        />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55), transparent 60%)' }} />
         {place.category && (
-          <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full glass-dark text-white text-[11px] font-medium">
+          <span
+            className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[11px] font-medium"
+            style={{ background: 'rgba(0,0,0,0.45)', color: categoryTheme.text, border: `0.5px solid ${categoryTheme.border}` }}
+          >
             {place.category}
           </span>
         )}
         {place.openNow != null && (
-          <span className={`absolute top-3 right-3 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
-            place.openNow ? 'bg-leaf/90 text-white' : 'bg-charcoal/70 text-white'
-          }`}>
+          <span
+            className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-[11px] font-semibold"
+            style={place.openNow
+              ? { background: '#639922', color: '#173404' }
+              : { background: 'rgba(0,0,0,0.55)', color: 'rgba(255,255,255,0.75)' }}
+          >
             {place.openNow ? 'Open now' : 'Closed'}
           </span>
         )}
       </div>
 
       <div className="p-4 flex-1 flex flex-col">
-        <h3 className="font-body font-semibold text-charcoal text-base mb-1.5 line-clamp-1">{place.name}</h3>
+        <h3 className="font-body font-semibold text-white text-[15px] mb-1.5 line-clamp-1">{place.name}</h3>
 
-        <div className="flex items-center gap-3 text-xs text-charcoal/60 mb-2">
+        <div className="flex items-center gap-3 text-xs mb-2" style={{ color: 'var(--lv-teal-light)' }}>
           {place.rating != null && (
             <span className="flex items-center gap-1">
-              <Star className="w-3.5 h-3.5 fill-coral text-coral" />
+              <Star className="w-3.5 h-3.5 fill-current" />
               {place.rating.toFixed(1)} ({place.reviewCount})
             </span>
           )}
           {place.distanceKm != null && (
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1" style={{ color: 'var(--lv-text-onteal-muted)' }}>
               <Clock className="w-3.5 h-3.5" /> {place.distanceKm.toFixed(1)} km
             </span>
           )}
         </div>
 
         {place.address && (
-          <div className="flex items-start gap-1 text-xs text-charcoal/60 mb-3">
-            <MapPin className="w-3.5 h-3.5 text-coral shrink-0 mt-0.5" />
+          <div className="flex items-start gap-1 text-xs mb-3" style={{ color: 'var(--lv-text-onteal-muted)' }}>
+            <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: 'var(--lv-coral)' }} />
             <span className="line-clamp-2">{place.address}</span>
           </div>
         )}
 
-        <div className="mt-auto grid grid-cols-2 gap-2 pt-3 border-t border-sand">
+        <div className="mt-auto grid grid-cols-2 gap-2 pt-3" style={{ borderTop: '0.5px solid var(--lv-border-onteal)' }}>
           <button onClick={handleSave}
-            className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-              saved ? 'bg-ocean text-white' : 'bg-sand text-charcoal hover:bg-sand/80'
-            }`}>
+            className={`discover-btn-ghost flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium ${saved ? 'discover-btn-ghost-active' : ''}`}>
             <Bookmark className={`w-3.5 h-3.5 ${saved ? 'fill-white' : ''}`} /> {saved ? 'Saved' : 'Save'}
           </button>
           <button onClick={handleAddToPlans}
-            className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-              planned ? 'bg-teal text-white' : 'bg-sand text-charcoal hover:bg-sand/80'
-            }`}>
+            className={`discover-btn-ghost flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium ${planned ? 'discover-btn-ghost-active' : ''}`}>
             <CalendarPlus className="w-3.5 h-3.5" /> {planned ? 'In plans' : 'Add to plans'}
           </button>
           <a href={place.googleMapsUrl} target="_blank" rel="noopener noreferrer nofollow"
-            className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium bg-sand text-charcoal hover:bg-sand/80 transition-colors">
+            className="discover-btn-ghost flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium">
             <Info className="w-3.5 h-3.5" /> View details
           </a>
           <a href={websiteHref} target="_blank" rel="noopener noreferrer nofollow"
-            className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium bg-gradient-to-r from-ocean to-teal text-white hover:shadow-md transition-all">
+            className="discover-btn-accent flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium">
             <ExternalLink className="w-3.5 h-3.5" /> Visit website
           </a>
         </div>
         <button onClick={handleMarkVisited}
-          className={`mt-2 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-            visited ? 'bg-leaf/10 text-leaf' : 'text-charcoal/50 hover:bg-sand'
-          }`}>
+          className="mt-2 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors"
+          style={visited
+            ? { color: 'var(--lv-teal-light)', background: 'rgba(29,158,117,0.12)' }
+            : { color: 'var(--lv-text-onteal-muted)' }}>
           <CheckCircle2 className="w-3.5 h-3.5" /> {visited ? "You've visited this" : 'Mark as visited'}
         </button>
       </div>
