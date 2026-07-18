@@ -7,7 +7,7 @@ export const capeTownImages = {
   hero: {
     primary: '/images/cape-town/hero/table-mountain-clouds.jpg',
     sunset: '/images/cape-town/hero/twelve-apostles-sunset.jpg',
-    discover: '/images/cape-town/hero/cape-town-discover.png',
+    discover: '/images/cape-town/hero/cape-town-aerial.jpg',
   },
   areas: {
     cityBowl: '/images/cape-town/areas/city-bowl-stadium.jpg',
