@@ -14,9 +14,10 @@ import { useAuth } from '@/lib/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile.jsx';
 import { getProfileTheme, colorForLabel } from '@/lib/profileThemes';
 import { useAccessibilityPrefs } from '@/lib/accessibilityPrefs';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
+import FollowListModal from '@/components/landing/FollowListModal';
 import ProfileTabBar, { PROFILE_TABS } from '@/components/profile/ProfileTabBar';
 import {
   Edit2, MapPin, BadgeCheck, ShieldCheck, Calendar, Users, CalendarClock,
@@ -32,7 +33,6 @@ const VALID_TABS = [...PROFILE_TABS.map((t) => t.id)];
 
 export default function Profile() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const systemReduceMotion = useReducedMotion();
   const isMobile = useIsMobile();
@@ -44,6 +44,7 @@ export default function Profile() {
   const [followedGroups, setFollowedGroups] = useState([]);
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
+  const [followListOpen, setFollowListOpen] = useState(null); // null | 'followers' | 'following'
   const [activity, setActivity] = useState([]);
   const [socialLinks, setSocialLinks] = useState({});
   const [editOpen, setEditOpen] = useState(searchParams.get('edit') === '1');
@@ -152,8 +153,8 @@ export default function Profile() {
   const eventsJoinedCount = plans.filter(p => p.type === 'event').length;
 
   const STATS = [
-    { label: 'Followers', value: followerCount, icon: UserCheck, onClick: () => navigate('/settings') },
-    { label: 'Following', value: followingCount, icon: UserPlus, onClick: () => navigate('/settings') },
+    { label: 'Followers', value: followerCount, icon: UserCheck, onClick: () => setFollowListOpen('followers') },
+    { label: 'Following', value: followingCount, icon: UserPlus, onClick: () => setFollowListOpen('following') },
     { label: 'Communities', value: clubs.length, icon: Users, onClick: () => setActiveTab('Communities') },
     { label: 'Groups followed', value: followedGroups.length, icon: Bell, onClick: () => setActiveTab('Following groups') },
     { label: 'Events joined', value: eventsJoinedCount, icon: CalendarClock, onClick: () => setActiveTab('Events') },
@@ -607,6 +608,13 @@ export default function Profile() {
           onClose={() => setCameraOpen(false)}
         />
       )}
+      <FollowListModal
+        open={!!followListOpen}
+        onOpenChange={(v) => setFollowListOpen(v ? followListOpen : null)}
+        uid={user.uid}
+        type={followListOpen || 'followers'}
+        viewerUid={user.uid}
+      />
     </div>
   );
 }

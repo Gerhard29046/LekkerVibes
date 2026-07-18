@@ -62,7 +62,13 @@ export const communitiesApi = {
     };
   },
 
-  // { name, description, city, category, rules, imageURL }
+  // { name, description, city, category, rules, imageURL, joinPolicy }
+  //
+  // joinPolicy: 'open' (default — anyone can self-join) | 'invite_only'
+  // (self-join is only accepted if the joiner's membership write carries
+  // the matching `inviteToken` — see Firebase/firestore.rules; unlike the
+  // events invite-link case this is a plain write-time check, not a read
+  // problem, so no Worker round-trip is needed).
   //
   // This is deliberately NOT one atomic writeBatch: the member/conversation
   // docs' security rules need to `get()` the community doc to confirm
@@ -76,6 +82,8 @@ export const communitiesApi = {
   // left half-created.
   async create(data, currentUser) {
     const communityRef = doc(collection(db, 'communities'));
+    const joinPolicy = data.joinPolicy === 'invite_only' ? 'invite_only' : 'open';
+    const inviteToken = joinPolicy === 'invite_only' ? crypto.randomUUID() : null;
 
     await setDoc(communityRef, {
       name: data.name,
@@ -84,6 +92,8 @@ export const communitiesApi = {
       category: data.category || null,
       rules: data.rules || '',
       imageURL: data.imageURL || null,
+      joinPolicy,
+      inviteToken,
       status: 'active',
       ownerId: currentUser.uid,
       ownerName: currentUser.displayName || currentUser.email || 'Organiser',
@@ -122,11 +132,14 @@ export const communitiesApi = {
     return deleteDoc(doc(db, 'communities', id));
   },
 
-  join(id, currentUser) {
+  // `token` is only meaningful (and only checked, by the rule) for
+  // invite_only communities — harmless to omit for open ones.
+  join(id, currentUser, token) {
     return setDoc(doc(db, 'communities', id, 'members', currentUser.uid), {
       uid: currentUser.uid,
       role: 'member',
       joinedAt: serverTimestamp(),
+      ...(token ? { joinToken: token } : {}),
     });
   },
 

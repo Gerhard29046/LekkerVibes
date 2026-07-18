@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { messagesApi } from '@/api/messagesApi';
+import { notificationsApi } from '@/api/notificationsApi';
 import { useAuth } from '@/lib/AuthContext';
 import { ArrowLeft, Send, Trash2, MessageCircle } from 'lucide-react';
 import moment from 'moment';
@@ -50,6 +51,9 @@ export default function GroupChat() {
     try {
       await messagesApi.send(conversationId, text.trim(), user);
       setText('');
+      // Best-effort, never blocks sending — a lightweight "X new messages"
+      // indicator for members who aren't currently looking at this chat.
+      notificationsApi.notifyGroupMessage(conversationId, user).catch(() => {});
     } finally {
       setSending(false);
     }
@@ -111,12 +115,31 @@ export default function GroupChat() {
           const isOwn = msg.senderId === user?.uid;
           return (
             <div key={msg.id} className={`flex gap-2.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
-              {/* Avatar */}
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-ocean to-teal flex items-center justify-center shrink-0 overflow-hidden">
-                <span className="text-white text-xs font-bold">{(msg.senderName || (msg.isSystem ? 'LV' : 'M'))[0].toUpperCase()}</span>
-              </div>
+              {/* Avatar — tappable through to the sender's profile; system
+                  messages have no real sender, so they stay static. */}
+              {msg.isSystem ? (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-ocean to-teal flex items-center justify-center shrink-0 overflow-hidden">
+                  <span className="text-white text-xs font-bold">LV</span>
+                </div>
+              ) : (
+                <Link
+                  to={`/u/${msg.senderId}`}
+                  className="w-8 h-8 rounded-full bg-gradient-to-br from-ocean to-teal flex items-center justify-center shrink-0 overflow-hidden hover:opacity-80 transition-opacity"
+                  title={msg.senderName}
+                >
+                  <span className="text-white text-xs font-bold">{(msg.senderName || 'M')[0].toUpperCase()}</span>
+                </Link>
+              )}
               <div className={`max-w-xs sm:max-w-sm lg:max-w-md group ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
-                {!isOwn && msg.senderName && <p className="text-xs text-charcoal/50 font-medium mb-1 px-1">{msg.senderName}</p>}
+                {!isOwn && msg.senderName && (
+                  msg.isSystem ? (
+                    <p className="text-xs text-charcoal/50 font-medium mb-1 px-1">{msg.senderName}</p>
+                  ) : (
+                    <Link to={`/u/${msg.senderId}`} className="text-xs text-charcoal/50 font-medium mb-1 px-1 hover:text-ocean hover:underline transition-colors w-fit">
+                      {msg.senderName}
+                    </Link>
+                  )
+                )}
                 <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
                   msg.isDeleted
                     ? 'bg-sand/60 text-charcoal/40 italic rounded-tl-sm'

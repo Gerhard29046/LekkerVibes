@@ -17,6 +17,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { apiClient } from '@/api/apiClient';
+import { notificationsApi } from '@/api/notificationsApi';
 
 const CATEGORIES = [
   'Running', 'Hiking', 'Surfing', 'Cycling', 'Yoga & Wellness',
@@ -203,10 +204,19 @@ export const eventsApi = {
 
   // Cancelling archives (never deletes) the paired chat, per spec — the
   // conversation doc's `isArchived` flag is the only field its rules allow
-  // the host to update post-creation.
-  async cancel(id) {
+  // the host to update post-creation. Notifies every other attendee —
+  // deliberately scoped to cancellation only, not every field edit, since
+  // that's the one change attendees genuinely need to know about.
+  async cancel(id, host) {
+    const eventSnap = await getDoc(doc(db, 'events', id));
     await updateDoc(doc(db, 'events', id), { status: 'cancelled', updatedAt: serverTimestamp() });
     await updateDoc(doc(db, 'conversations', id), { isArchived: true }).catch(() => {});
+    if (host && eventSnap.exists()) {
+      const attendeesSnap = await getDocs(collection(db, 'events', id, 'attendees'));
+      await notificationsApi.notifyEventCancelled(
+        attendeesSnap.docs.map((d) => d.id), host, { id, title: eventSnap.data().title },
+      );
+    }
   },
 
   remove(id) {
@@ -234,7 +244,8 @@ export const eventsApi = {
   // simultaneous joins, not a security issue.
   async join(id, currentUser) {
     const eventSnap = await getDoc(doc(db, 'events', id));
-    const capacity = eventSnap.exists() ? eventSnap.data().capacity : null;
+    const eventData = eventSnap.exists() ? eventSnap.data() : null;
+    const capacity = eventData?.capacity ?? null;
     let status = 'going';
     if (capacity != null) {
       const count = await goingCount(id);
@@ -245,6 +256,9 @@ export const eventsApi = {
       status,
       joinedAt: serverTimestamp(),
     });
+    if (eventData) {
+      notificationsApi.notifyEventJoin(eventData.organiserId, currentUser, { id, title: eventData.title });
+    }
     return { status };
   },
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { communitiesApi } from '@/api/communitiesApi';
 import { eventsApi } from '@/api/eventsApi';
 import { reportsApi } from '@/api/reportsApi';
@@ -11,13 +11,15 @@ import Footer from '@/components/landing/Footer';
 import ActivityCard from '@/components/landing/ActivityCard';
 import {
   ArrowLeft, MapPin, Users, Calendar, MessageCircle,
-  Shield, Share2, Flag, Loader2, Pencil, Bell
+  Shield, Share2, Flag, Loader2, Pencil, Bell, Link2, Lock, Check
 } from 'lucide-react';
 import { FEATURES } from '@/lib/featureFlags';
 import ComingSoon from '@/components/ComingSoon';
 
 export default function ClubDetail() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get('token');
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const [club, setClub] = useState(null);
@@ -28,6 +30,7 @@ export default function ClubDetail() {
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const load = () => {
     communitiesApi.get(id, user?.uid)
@@ -89,12 +92,19 @@ export default function ClubDetail() {
     }
     setJoinLoading(true);
     try {
-      await communitiesApi.join(club.id, user);
+      await communitiesApi.join(club.id, user, inviteToken || undefined);
       activityApi.record(user.uid, 'joined_community', { communityId: club.id, communityName: club.name }).catch(() => {});
       load();
     } finally {
       setJoinLoading(false);
     }
+  };
+
+  const handleCopyInviteLink = async () => {
+    const url = `${window.location.origin}/club/${club.id}?token=${club.inviteToken}`;
+    await navigator.clipboard.writeText(url).catch(() => {});
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
   };
 
   const handleLeave = async () => {
@@ -232,17 +242,23 @@ export default function ClubDetail() {
           {/* Sidebar */}
           <div className="space-y-5">
             <div className="bg-white rounded-2xl p-6 border border-sand sticky top-24">
-              <button
-                onClick={isMember ? handleLeave : handleJoin}
-                disabled={joinLoading}
-                className={`w-full py-3 font-semibold rounded-xl transition-all mb-3 text-sm disabled:opacity-60 ${
-                  isMember
-                    ? 'bg-sand text-charcoal hover:bg-sand/80'
-                    : 'bg-gradient-to-r from-ocean to-teal text-white hover:shadow-lg hover:shadow-ocean/20'
-                }`}
-              >
-                {joinLoading ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : isMember ? 'Leave Community' : 'Join Community'}
-              </button>
+              {!isMember && club.joinPolicy === 'invite_only' && !inviteToken ? (
+                <div className="w-full py-3 rounded-xl bg-sand text-charcoal/60 text-sm text-center mb-3 flex items-center justify-center gap-2">
+                  <Lock className="w-4 h-4" /> Invite only
+                </div>
+              ) : (
+                <button
+                  onClick={isMember ? handleLeave : handleJoin}
+                  disabled={joinLoading}
+                  className={`w-full py-3 font-semibold rounded-xl transition-all mb-3 text-sm disabled:opacity-60 ${
+                    isMember
+                      ? 'bg-sand text-charcoal hover:bg-sand/80'
+                      : 'bg-gradient-to-r from-ocean to-teal text-white hover:shadow-lg hover:shadow-ocean/20'
+                  }`}
+                >
+                  {joinLoading ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : isMember ? 'Leave Community' : 'Join Community'}
+                </button>
+              )}
               <button
                 onClick={handleFollowToggle}
                 disabled={followLoading}
@@ -273,6 +289,25 @@ export default function ClubDetail() {
                 </button>
               </div>
             </div>
+
+            {/* Invite link — owner-only, since it's the credential that
+                grants access to an otherwise-closed community. */}
+            {club.ownerId === user?.uid && club.joinPolicy === 'invite_only' && club.inviteToken && (
+              <div className="bg-white rounded-2xl p-5 border border-sand">
+                <div className="flex items-center gap-2 mb-2">
+                  <Link2 className="w-4 h-4 text-ocean" />
+                  <h3 className="font-heading text-sm font-semibold text-charcoal">Invite link</h3>
+                </div>
+                <p className="text-xs text-charcoal/60 mb-3">Anyone with this link can join — the community stays out of open browsing otherwise.</p>
+                <button
+                  onClick={handleCopyInviteLink}
+                  className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-sand text-charcoal text-xs font-semibold rounded-xl hover:bg-sand/80 transition-colors"
+                >
+                  {linkCopied ? <Check className="w-3.5 h-3.5 text-leaf" /> : <Link2 className="w-3.5 h-3.5" />}
+                  {linkCopied ? 'Copied!' : 'Copy invite link'}
+                </button>
+              </div>
+            )}
 
             {/* Organiser */}
             <div className="bg-white rounded-2xl p-5 border border-sand">

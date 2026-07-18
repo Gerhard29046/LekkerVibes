@@ -12,6 +12,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useClickOutside } from '@/hooks/useClickOutside.jsx';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
+import FollowListModal from '@/components/landing/FollowListModal';
 import {
   MapPin, BadgeCheck, ShieldCheck, Calendar, Users, UserPlus, UserCheck, Clock,
   Instagram, Facebook, Link2, Lock, MoreVertical, Flag, Ban,
@@ -29,6 +30,8 @@ export default function PublicProfile() {
   const [clubs, setClubs] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [followListOpen, setFollowListOpen] = useState(null); // null | 'followers' | 'following'
   const [relationship, setRelationship] = useState('none'); // none | requested | following
   const [revealStatus, setRevealStatus] = useState(null); // null | pending | accepted
   const [grantedPlatforms, setGrantedPlatforms] = useState([]);
@@ -42,16 +45,18 @@ export default function PublicProfile() {
   const menuRef = useClickOutside(menuOpen, closeMenu);
 
   const load = useCallback(async () => {
-    const [profileData, memberships, organisedEvents, followers] = await Promise.all([
+    const [profileData, memberships, organisedEvents, followers, following] = await Promise.all([
       profileApi.get(uid),
       communitiesApi.myMemberships(uid).catch(() => []),
       eventsApi.byOrganiser(uid).catch(() => []),
       followApi.followerCount(uid).catch(() => 0),
+      followApi.followingCount(uid).catch(() => 0),
     ]);
     setProfile(profileData);
     setClubs(memberships);
     setUpcomingEvents(organisedEvents);
     setFollowerCount(followers);
+    setFollowingCount(following);
 
     if (user && profileData) {
       const [state, reveal] = await Promise.all([
@@ -268,7 +273,26 @@ export default function PublicProfile() {
                 Member since {moment(profile.createdAt.toDate ? profile.createdAt.toDate() : profile.createdAt).format('MMM YYYY')}
               </span>
             )}
-            <span className="flex items-center gap-1"><Users className="w-4 h-4 text-teal" />{followerCount} followers</span>
+            {(() => {
+              const canSeeFollowers = profile.privacy?.followersVisibility === 'everyone'
+                || (profile.privacy?.followersVisibility === 'followers' && relationship === 'following');
+              const canSeeFollowing = profile.privacy?.followingVisibility === 'everyone'
+                || (profile.privacy?.followingVisibility === 'followers' && relationship === 'following');
+              return (
+                <>
+                  {canSeeFollowers && (
+                    <button onClick={() => setFollowListOpen('followers')} className="flex items-center gap-1 hover:text-charcoal transition-colors">
+                      <Users className="w-4 h-4 text-teal" />{followerCount} followers
+                    </button>
+                  )}
+                  {canSeeFollowing && (
+                    <button onClick={() => setFollowListOpen('following')} className="flex items-center gap-1 hover:text-charcoal transition-colors">
+                      <Users className="w-4 h-4 text-ocean" />{followingCount} following
+                    </button>
+                  )}
+                </>
+              );
+            })()}
           </div>
           {profile.interests?.length > 0 && (
             <div className="flex flex-wrap gap-2">
@@ -348,6 +372,13 @@ export default function PublicProfile() {
         )}
       </div>
       <Footer />
+      <FollowListModal
+        open={!!followListOpen}
+        onOpenChange={(v) => setFollowListOpen(v ? followListOpen : null)}
+        uid={uid}
+        type={followListOpen || 'followers'}
+        viewerUid={user?.uid}
+      />
     </div>
   );
 }

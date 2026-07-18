@@ -24,7 +24,7 @@ export default function CreateClub() {
   const [imagePreview, setImagePreview] = useState('');
   const [form, setForm] = useState({
     name: '', description: '', city: selectedCity,
-    category: '', rules: '', imageURL: null,
+    category: '', rules: '', imageURL: null, joinPolicy: 'open',
   });
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
@@ -117,6 +117,32 @@ export default function CreateClub() {
                   {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-5 border border-sand space-y-3">
+            <h3 className="font-heading font-semibold text-charcoal text-sm">Who can join</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => set('joinPolicy', 'open')}
+                className={`text-left p-3.5 rounded-xl border text-sm transition-colors ${
+                  form.joinPolicy === 'open' ? 'border-ocean bg-ocean/5' : 'border-sand hover:border-ocean/30'
+                }`}
+              >
+                <p className="font-semibold text-charcoal mb-0.5">Public</p>
+                <p className="text-xs text-charcoal/60">Anyone can join instantly.</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => set('joinPolicy', 'invite_only')}
+                className={`text-left p-3.5 rounded-xl border text-sm transition-colors ${
+                  form.joinPolicy === 'invite_only' ? 'border-ocean bg-ocean/5' : 'border-sand hover:border-ocean/30'
+                }`}
+              >
+                <p className="font-semibold text-charcoal mb-0.5">Invite-only</p>
+                <p className="text-xs text-charcoal/60">Only joinable via a link you share.</p>
+              </button>
             </div>
           </div>
 

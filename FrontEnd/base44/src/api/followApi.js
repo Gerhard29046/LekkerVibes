@@ -1,6 +1,6 @@
 import {
   collection, doc, getDoc, getDocs, deleteDoc, setDoc, updateDoc,
-  query, where, serverTimestamp, getCountFromServer,
+  query, where, orderBy, limit as fsLimit, startAfter, serverTimestamp, getCountFromServer,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { apiClient } from '@/api/apiClient';
@@ -76,6 +76,40 @@ export const followApi = {
   async listFollowing(uid) {
     const snap = await getDocs(collection(db, 'users', uid, 'following'));
     return snap.docs.map((d) => d.data());
+  },
+
+  // Paginated + enriched with displayName/photoURL — followers/following
+  // docs themselves only store {uid, followedAt}, so the popup's rows need
+  // a users/{uid} lookup per entry. Bounded to `pageSize` reads per page
+  // rather than fetching a popular account's entire list at once.
+  async listFollowersPage(uid, { pageSize = 20, cursor = null } = {}) {
+    const constraints = [orderBy('followedAt', 'desc'), ...(cursor ? [startAfter(cursor)] : []), fsLimit(pageSize)];
+    const snap = await getDocs(query(collection(db, 'users', uid, 'followers'), ...constraints));
+    const users = await Promise.all(snap.docs.map((d) => getDoc(doc(db, 'users', d.data().uid))));
+    return {
+      items: snap.docs.map((d, i) => ({
+        uid: d.data().uid,
+        displayName: users[i].exists() ? users[i].data().displayName : 'Member',
+        photoURL: users[i].exists() ? users[i].data().photoURL || null : null,
+      })),
+      cursor: snap.docs[snap.docs.length - 1] || null,
+      hasMore: snap.docs.length === pageSize,
+    };
+  },
+
+  async listFollowingPage(uid, { pageSize = 20, cursor = null } = {}) {
+    const constraints = [orderBy('followedAt', 'desc'), ...(cursor ? [startAfter(cursor)] : []), fsLimit(pageSize)];
+    const snap = await getDocs(query(collection(db, 'users', uid, 'following'), ...constraints));
+    const users = await Promise.all(snap.docs.map((d) => getDoc(doc(db, 'users', d.data().uid))));
+    return {
+      items: snap.docs.map((d, i) => ({
+        uid: d.data().uid,
+        displayName: users[i].exists() ? users[i].data().displayName : 'Member',
+        photoURL: users[i].exists() ? users[i].data().photoURL || null : null,
+      })),
+      cursor: snap.docs[snap.docs.length - 1] || null,
+      hasMore: snap.docs.length === pageSize,
+    };
   },
 
   async followerCount(uid) {

@@ -118,7 +118,7 @@ export default function EditActivity() {
   const handleCancel = async () => {
     setSaving(true);
     try {
-      await eventsApi.cancel(id);
+      await eventsApi.cancel(id, user);
       navigate(`/activity/${id}`);
     } finally {
       setSaving(false);

@@ -149,10 +149,23 @@ service cloud.firestore {
       // types — no relationship state, grant, or privileged field is
       // reachable through this path.
       match /notifications/{notificationId} {
-        allow read, update, delete: if request.auth != null && request.auth.uid == uid;
+        allow read, delete: if request.auth != null && request.auth.uid == uid;
+        // The owner can always update their own notifications (e.g.
+        // mark-read/mark-all-read). One extra case: 'group_message' is a
+        // single upserted-per-conversation doc (see
+        // notificationsApi.notifyGroupMessage) that increments each time
+        // someone new sends a message — the SENDER writes that update, not
+        // the recipient, so this second branch lets them, but only ever
+        // touching the count/read/createdAt fields of an already
+        // group_message-typed doc, never anything else.
+        allow update: if request.auth != null
+                      && (request.auth.uid == uid
+                          || (resource.data.type == 'group_message'
+                              && request.resource.data.fromUid == request.auth.uid
+                              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count', 'read', 'createdAt', 'fromUid'])));
         allow create: if request.auth != null
                       && request.resource.data.fromUid == request.auth.uid
-                      && request.resource.data.type in ['follow_request', 'social_reveal_request', 'social_access_revoked'];
+                      && request.resource.data.type in ['follow_request', 'social_reveal_request', 'social_access_revoked', 'group_message', 'event_join', 'event_update'];
       }
     }
 
@@ -277,10 +290,21 @@ service cloud.firestore {
         // creator, who is allowed to seed their own 'organiser' membership
         // doc at community-creation time (there's no other member yet who
         // could grant it to them).
+        //
+        // Invite-only communities: unlike the events invite-link case (a
+        // *read* problem a rule can never fully solve — see the note on
+        // events/{eventId} — this is a *write*, so request.resource.data is
+        // directly comparable. The joiner submits `joinToken` as part of
+        // their own membership doc, checked directly against the
+        // community's stored inviteToken; a wrong/missing token simply
+        // fails the write, no Worker round-trip needed.
         allow create: if request.auth != null && request.auth.uid == uid
                       && (request.resource.data.role == 'member'
                           || (request.resource.data.role == 'organiser'
-                              && get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId == uid));
+                              && get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId == uid))
+                      && (get(/databases/$(database)/documents/communities/$(communityId)).data.joinPolicy != 'invite_only'
+                          || get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId == uid
+                          || request.resource.data.joinToken == get(/databases/$(database)/documents/communities/$(communityId)).data.inviteToken);
         // Self-leave, except the owner (must transfer/delete the community
         // instead of abandoning it with no owner).
         allow delete: if request.auth != null && request.auth.uid == uid
