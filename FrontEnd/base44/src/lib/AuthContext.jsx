@@ -8,7 +8,7 @@ import {
   signOut,
   updateProfile,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebaseClient';
 import { registerFcmToken } from '@/lib/fcmRegistration';
 import { DEFAULT_PRIVACY } from '@/api/profileApi';
@@ -59,6 +59,20 @@ export const AuthProvider = ({ children }) => {
     });
     return unsubscribe;
   }, []);
+
+  // Lightweight presence: a periodic heartbeat rather than true realtime
+  // disconnect-detection (that needs Firebase Realtime Database, a whole
+  // separate product this project doesn't otherwise use) — "online" is
+  // read elsewhere as "lastActiveAt within the last couple of minutes".
+  // Good enough for the Messages page's online-status dots without adding
+  // new infrastructure for one feature.
+  useEffect(() => {
+    if (!user) return;
+    const beat = () => updateDoc(doc(db, 'users', user.uid), { lastActiveAt: serverTimestamp() }).catch(() => {});
+    beat();
+    const interval = setInterval(beat, 60000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   // Kept for compatibility with call sites that used to await this after
   // login/register — onAuthStateChanged already keeps `user` current, so

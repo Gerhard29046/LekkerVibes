@@ -27,7 +27,7 @@ export default function GroupChat() {
     messagesApi.conversation(conversationId).then((convo) => {
       if (!cancelled) setConversation(convo);
     });
-    messagesApi.markConversationRead().catch(() => {});
+    if (user) messagesApi.markConversationRead(conversationId, user.uid).catch(() => {});
 
     const unsubscribe = messagesApi.subscribeToMessages(conversationId, (msgs) => {
       if (cancelled) return;

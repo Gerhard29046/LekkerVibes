@@ -18,6 +18,7 @@ import {
 import { db } from '@/lib/firebaseClient';
 import { apiClient } from '@/api/apiClient';
 import { notificationsApi } from '@/api/notificationsApi';
+import { messagesApi } from '@/api/messagesApi';
 
 const CATEGORIES = [
   'Running', 'Hiking', 'Surfing', 'Cycling', 'Yoga & Wellness',
@@ -193,6 +194,14 @@ export const eventsApi = {
     } catch (err) {
       await deleteDoc(eventRef).catch(() => {});
       throw err;
+    }
+
+    // Hosted into a community (visibility 'members'): the group's own
+    // ongoing chat gets an auto-posted event card announcing it, distinct
+    // from the event's own dedicated attendee chat created above. Best
+    // -effort — a message-post failure shouldn't fail event creation.
+    if (visibility === 'members' && data.communityId) {
+      messagesApi.postEventCard(data.communityId, eventRef.id, currentUser).catch(() => {});
     }
 
     return { id: eventRef.id, chatId: eventRef.id };

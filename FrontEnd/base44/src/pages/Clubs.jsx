@@ -3,6 +3,7 @@ import { Search, Users, MapPin, Plus } from 'lucide-react';
 import { communitiesApi } from '@/api/communitiesApi';
 import { useLocation } from '@/hooks/useLocation.jsx';
 import { useAuth } from '@/lib/AuthContext';
+import { useSearchParams } from 'react-router-dom';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 import { motion } from 'framer-motion';
@@ -17,16 +18,23 @@ export default function Clubs() {
   const [search, setSearch] = useState('');
   const { selectedCity } = useLocation();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  // Set by the Messages page's "Explore categories" list — a comma-
+  // separated list of the underlying category values that group maps to
+  // (see COMMUNITY_CATEGORY_GROUPS), not a single category name.
+  const categoriesParam = searchParams.get('categories');
+  const categories = categoriesParam ? categoriesParam.split(',') : undefined;
 
   useEffect(() => {
     if (!FEATURES.communities) return;
     setLoading(true);
     setError(false);
-    communitiesApi.list({ city: selectedCity })
+    communitiesApi.list({ city: selectedCity, categories })
       .then(setClubs)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [selectedCity]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCity, categoriesParam]);
 
   if (!FEATURES.communities) {
     return <ComingSoon feature="Communities" />;

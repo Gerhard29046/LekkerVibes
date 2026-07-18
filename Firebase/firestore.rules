@@ -128,6 +128,18 @@ service cloud.firestore {
         allow delete: if request.auth != null && request.auth.uid == uid;
       }
 
+      // Per-user community mute — self-owned, same shape as followedGroups.
+      match /mutedCommunities/{communityId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // Per-conversation "last read" marker, powering the Messages page's
+      // unread-count badges — self-only, and irrelevant to anyone else's
+      // security posture, so a plain self-write is enough.
+      match /conversationReads/{conversationId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
       // Recent-activity feed entries — self-authored at the moment of the
       // underlying action (e.g. right after joining a community), each
       // carrying its own visibility.
@@ -463,14 +475,23 @@ service cloud.firestore {
         allow create: if isMemberOfConversation()
           && request.resource.data.senderId == request.auth.uid
           && request.resource.data.isDeleted == false;
-        // A sender may only soft-delete their own message (isDeleted=true,
-        // body cleared) — never hard-delete. A moderator deleting someone
-        // else's message goes through the Worker instead, which
-        // authenticates as the service account and bypasses these rules.
+        // Two distinct update shapes: (1) a sender soft-deleting their own
+        // message (isDeleted=true, content cleared) — never hard-delete,
+        // a moderator deleting someone else's message goes through the
+        // Worker instead, which authenticates as the service account and
+        // bypasses these rules; (2) any member toggling a reaction. The
+        // reaction branch doesn't attempt to prove "only your own uid
+        // moved within the map" — Firestore rules can't cleanly express
+        // that per-key-array diff, and the actual stakes are low (reaction
+        // pills only ever show an emoji + count, never who reacted, per
+        // the product spec, so a spoofed uid in someone else's reaction
+        // array is a cosmetic count nudge, not a real leak).
         allow update: if request.auth != null
-          && resource.data.senderId == request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isDeleted', 'body'])
-          && request.resource.data.isDeleted == true;
+          && ((resource.data.senderId == request.auth.uid
+               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isDeleted', 'body', 'imageURL'])
+               && request.resource.data.isDeleted == true)
+              || (isMemberOfConversation()
+                  && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])));
         allow delete: if false;
       }
     }

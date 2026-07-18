@@ -22,6 +22,7 @@ import Settings from '@/pages/Settings';
 import CreateActivity from '@/pages/CreateActivity';
 import CreateClub from '@/pages/CreateClub';
 import GroupChat from '@/pages/GroupChat';
+import Messages from '@/pages/Messages';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
@@ -65,6 +66,8 @@ const AuthenticatedApp = () => {
         <Route path="/create-club" element={<CreateClub />} />
         <Route path="/club/:id/edit" element={<EditClub />} />
         <Route path="/chat/:conversationId" element={<GroupChat />} />
+        <Route path="/messages" element={<Messages />} />
+        <Route path="/messages/:communityId" element={<Messages />} />
       </Route>
 
       <Route path="*" element={<PageNotFound />} />

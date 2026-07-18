@@ -8,6 +8,7 @@ import {
   where,
   orderBy,
   limit as fsLimit,
+  startAfter,
   writeBatch,
   updateDoc,
   deleteDoc,
@@ -29,12 +30,19 @@ async function membershipFor(communityId, uid) {
 }
 
 export const communitiesApi = {
-  // { city, search }
-  async list({ city, search } = {}) {
+  // { city, search, categories } — `categories` (an array, see
+  // COMMUNITY_CATEGORY_GROUPS) is filtered client-side alongside `search`
+  // rather than a Firestore `in` clause, since combining that with the
+  // existing orderBy('createdAt') would need a composite index for what's
+  // a rarely-changing, low-volume browse list.
+  async list({ city, search, categories } = {}) {
     const clauses = city ? [where('city', '==', city)] : [];
     const q = query(collection(db, 'communities'), ...clauses, orderBy('createdAt', 'desc'), fsLimit(50));
     const snap = await getDocs(q);
     let items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (categories?.length) {
+      items = items.filter((c) => categories.includes(c.category));
+    }
     if (search) {
       const needle = search.toLowerCase();
       items = items.filter((c) =>
@@ -153,9 +161,45 @@ export const communitiesApi = {
     );
   },
 
+  // Paginated + enriched with displayName/photoURL/lastActiveAt — for the
+  // Messages page's "Members online" popup, reusing the same paginate-
+  // rather-than-fetch-everything shape as followApi's list popups.
+  async membersPage(communityId, { pageSize = 20, cursor = null } = {}) {
+    const constraints = [orderBy('joinedAt', 'desc'), ...(cursor ? [startAfter(cursor)] : []), fsLimit(pageSize)];
+    const snap = await getDocs(query(collection(db, 'communities', communityId, 'members'), ...constraints));
+    const users = await Promise.all(snap.docs.map((d) => getDoc(doc(db, 'users', d.id))));
+    return {
+      items: snap.docs.map((d, i) => ({
+        uid: d.id,
+        role: d.data().role,
+        displayName: users[i].exists() ? users[i].data().displayName : 'Member',
+        photoURL: users[i].exists() ? users[i].data().photoURL || null : null,
+        lastActiveAt: users[i].exists() ? users[i].data().lastActiveAt || null : null,
+      })),
+      cursor: snap.docs[snap.docs.length - 1] || null,
+      hasMore: snap.docs.length === pageSize,
+    };
+  },
+
   // Only an existing organiser (or the owner, enforced by rules) can call this.
   setRole(id, targetUid, role) {
     return updateDoc(doc(db, 'communities', id, 'members', targetUid), { role });
+  },
+
+  // Per-user community mute — self-owned, same shape as followedGroups.
+  // Doesn't currently suppress anything server-side (no automatic FCM
+  // send is wired up yet — see CLAUDE.md), it's the persisted preference
+  // the Messages page's mute toggle reads/writes, ready for whenever a
+  // Worker Cron/trigger does start sending message notifications.
+  async isMuted(uid, communityId) {
+    const snap = await getDoc(doc(db, 'users', uid, 'mutedCommunities', communityId));
+    return snap.exists();
+  },
+  muteNotifications(uid, communityId) {
+    return setDoc(doc(db, 'users', uid, 'mutedCommunities', communityId), { mutedAt: serverTimestamp() });
+  },
+  unmuteNotifications(uid, communityId) {
+    return deleteDoc(doc(db, 'users', uid, 'mutedCommunities', communityId));
   },
 
   // Communities the given uid belongs to — used on the profile page.

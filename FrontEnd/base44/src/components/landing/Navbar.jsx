@@ -33,6 +33,7 @@ export default function Navbar() {
     { label: 'Home', to: '/' },
     FEATURES.discover && { label: 'Discover', to: '/discover' },
     FEATURES.communities && { label: 'Communities', to: '/clubs' },
+    FEATURES.messages && { label: 'Messages', to: '/messages' },
     { label: 'Safety', to: '/safety' },
   ].filter(Boolean);
 
