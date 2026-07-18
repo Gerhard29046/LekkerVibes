@@ -105,7 +105,7 @@ export default function DiscoverPlaceCard({ place }) {
       </div>
 
       <div className="p-4 flex-1 flex flex-col">
-        <h3 className="font-heading font-semibold text-charcoal text-base mb-1.5 line-clamp-1">{place.name}</h3>
+        <h3 className="font-body font-semibold text-charcoal text-base mb-1.5 line-clamp-1">{place.name}</h3>
 
         <div className="flex items-center gap-3 text-xs text-charcoal/60 mb-2">
           {place.rating != null && (

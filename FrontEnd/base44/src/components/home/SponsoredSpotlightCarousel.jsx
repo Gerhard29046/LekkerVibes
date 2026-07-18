@@ -29,7 +29,7 @@ export default function SponsoredSpotlightCarousel({ citySlug = 'cape-town', red
       <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-6 flex items-center justify-between">
         <div>
           <p className="text-coral text-sm font-semibold mb-1 uppercase tracking-wide">Cape Town Spotlight</p>
-          <h2 className="font-heading text-2xl sm:text-3xl font-bold text-charcoal">Local favourites, hand-picked</h2>
+          <h2 className="font-body text-2xl sm:text-3xl font-bold text-charcoal">Local favourites, hand-picked</h2>
         </div>
         <div className="hidden sm:flex items-center gap-2">
           <button
@@ -127,7 +127,7 @@ function SpotlightSlide({ listing }) {
         <div className="flex items-center gap-2 text-white/70 text-xs font-medium mb-2">
           <MapPin className="w-3.5 h-3.5 text-coral" /> {listing.area} · {listing.category}
         </div>
-        <h3 className="font-heading text-xl sm:text-2xl font-bold text-white mb-1.5">{listing.businessName}</h3>
+        <h3 className="font-body text-xl sm:text-2xl font-bold text-white mb-1.5">{listing.businessName}</h3>
         <p className="text-white/80 text-sm max-w-md mb-4 line-clamp-2">{listing.headline}</p>
         {listing.description && (
           <p className="hidden sm:block text-white/60 text-xs max-w-md mb-4 line-clamp-1">{listing.description}</p>

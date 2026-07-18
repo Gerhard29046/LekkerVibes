@@ -35,15 +35,15 @@ export default function PopularRestaurants({ reduceMotion }) {
 
       {status === 'error' && (
         <div className="text-center py-16">
-          <p className="text-sm text-charcoal/60 mb-4">We couldn’t load Cape Town restaurants right now.</p>
-          <button onClick={retry} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-ocean/10 text-ocean text-sm font-semibold hover:bg-ocean/20 transition-colors">
+          <p className="text-sm text-white/70 mb-4">We couldn’t load Cape Town restaurants right now.</p>
+          <button onClick={retry} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white text-sm font-semibold hover:bg-white/20 transition-colors">
             <RotateCcw className="w-4 h-4" /> Try again
           </button>
         </div>
       )}
 
       {status === 'success' && results.length === 0 && (
-        <div className="text-center py-16 text-charcoal/50">
+        <div className="text-center py-16 text-white/60">
           <p className="text-sm">No restaurants found right now.</p>
         </div>
       )}
@@ -58,8 +58,18 @@ export default function PopularRestaurants({ reduceMotion }) {
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-4"
           >
             {results.map((place) => (
-              <motion.div key={place.id} variants={reduceMotion ? undefined : staggerItem('up')}>
+              <motion.div key={place.id} variants={reduceMotion ? undefined : staggerItem('up')} className="relative overflow-hidden rounded-2xl">
                 <PlaceCard place={place} reduceMotion={reduceMotion} />
+                {!reduceMotion && (
+                  <motion.div
+                    initial={{ scaleX: 1 }}
+                    whileInView={{ scaleX: 0 }}
+                    viewport={{ once: true, amount: 0.4 }}
+                    transition={{ duration: 0.7, ease: [0.65, 0, 0.35, 1], delay: 0.1 }}
+                    style={{ transformOrigin: 'right', background: 'linear-gradient(135deg, #0F766E, #0D9488)' }}
+                    className="pointer-events-none absolute inset-0 z-20 rounded-2xl"
+                  />
+                )}
               </motion.div>
             ))}
           </motion.div>

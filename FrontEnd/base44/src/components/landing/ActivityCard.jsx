@@ -48,7 +48,7 @@ export default function ActivityCard({ activity, compact = false }) {
 
         {/* Content */}
         <div className="p-4">
-          <h3 className="font-heading font-semibold text-charcoal text-base mb-1.5 line-clamp-1 group-hover:text-ocean transition-colors">
+          <h3 className="font-body font-semibold text-charcoal text-base mb-1.5 line-clamp-1 group-hover:text-ocean transition-colors">
             {activity.title}
           </h3>
 

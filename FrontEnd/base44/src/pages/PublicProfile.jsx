@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, Navigate, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { profileApi } from '@/api/profileApi';
 import { communitiesApi } from '@/api/communitiesApi';
 import { eventsApi } from '@/api/eventsApi';
@@ -8,6 +9,7 @@ import { socialLinksApi, PLATFORMS } from '@/api/socialLinksApi';
 import { reportsApi } from '@/api/reportsApi';
 import { apiClient } from '@/api/apiClient';
 import { useAuth } from '@/lib/AuthContext';
+import { useClickOutside } from '@/hooks/useClickOutside.jsx';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 import {
@@ -36,6 +38,8 @@ export default function PublicProfile() {
   const [reported, setReported] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const menuRef = useClickOutside(menuOpen, closeMenu);
 
   const load = useCallback(async () => {
     const [profileData, memberships, organisedEvents, followers] = await Promise.all([
@@ -182,22 +186,39 @@ export default function PublicProfile() {
         <div className="absolute inset-0 bg-gradient-to-t from-charcoal/40 to-transparent" />
 
         <div className="absolute top-4 right-4">
-          <div className="relative">
-            <button onClick={() => setMenuOpen(!menuOpen)} className="p-2 bg-charcoal/70 backdrop-blur text-white rounded-xl hover:bg-charcoal/90 transition-colors">
+          <div ref={menuRef} className="relative">
+            <button
+              onClick={() => setMenuOpen((cur) => !cur)}
+              className="p-2 bg-charcoal/70 backdrop-blur text-white rounded-xl hover:bg-charcoal/90 transition-colors"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-controls="public-profile-menu"
+              aria-label="Profile options"
+            >
               <MoreVertical className="w-4 h-4" />
             </button>
-            {menuOpen && (
-              <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-xl border border-sand py-1 min-w-[160px] z-10">
-                <button onClick={handleReport} disabled={reported}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-charcoal hover:bg-sand transition-colors disabled:opacity-50">
-                  <Flag className="w-4 h-4" /> {reported ? 'Reported' : 'Report profile'}
-                </button>
-                <button onClick={handleBlock} disabled={blocked || actionLoading}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-coral hover:bg-sand transition-colors disabled:opacity-50">
-                  <Ban className="w-4 h-4" /> Block user
-                </button>
-              </div>
-            )}
+            <AnimatePresence>
+              {menuOpen && (
+                <motion.div
+                  id="public-profile-menu"
+                  role="menu"
+                  initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                  transition={{ duration: 0.18 }}
+                  className="absolute right-0 top-[calc(100%+4px)] z-50 min-w-[160px] overflow-hidden rounded-xl border border-sand bg-white py-1 shadow-2xl"
+                >
+                  <button role="menuitem" onClick={handleReport} disabled={reported}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-charcoal hover:bg-sand transition-colors disabled:opacity-50">
+                    <Flag className="w-4 h-4" /> {reported ? 'Reported' : 'Report profile'}
+                  </button>
+                  <button role="menuitem" onClick={handleBlock} disabled={blocked || actionLoading}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-coral hover:bg-sand transition-colors disabled:opacity-50">
+                    <Ban className="w-4 h-4" /> Block user
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>

@@ -61,6 +61,15 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Defense-in-depth against horizontal page scroll: off-screen entrance
+     animations (whileInView reveals with an x-offset, peeking carousels,
+     etc.) can transiently paint content past the viewport edge before it's
+     scrolled into view. Nothing on this site is meant to be reached by
+     scrolling sideways, so clip it at the root rather than relying on every
+     component that might ever use a horizontal transform to get it right. */
+  html, body {
+    @apply overflow-x-hidden;
+  }
   body {
     @apply bg-[var(--lv-cream)] text-[var(--lv-charcoal)] font-body antialiased;
   }
@@ -171,6 +180,46 @@ html.lv-pause-marquees .animate-float {
   .spotlight-swiper .swiper-slide {
     width: 82vw;
   }
+}
+
+/* Cape Town homepage theme — a continuous dark ocean/teal gradient behind
+   every section below the hero (the hero itself is the full-bleed photo),
+   so the page never drops back to a plain white/cream background between
+   sections. Section-level "variety" comes from AmbientPageMotion's low
+   -opacity drifting glows plus each section's own colour accent (coral,
+   teal, amber, sky) layered on top of this shared base, not from separate
+   opaque colour blocks. */
+.cape-town-theme {
+  background:
+    radial-gradient(circle at 15% 25%, rgba(249, 115, 102, 0.14), transparent 34%),
+    radial-gradient(circle at 82% 45%, rgba(125, 211, 252, 0.13), transparent 38%),
+    linear-gradient(180deg, #0a3945 0%, #0e5360 35%, #123f49 68%, #102d35 100%);
+}
+
+/* Hero event carousel card — Ken Burns hover zoom + gentle brighten, kept
+   inside the card's own overflow-hidden boundary. */
+.hero-card-image {
+  transition: transform 2.5s cubic-bezier(0.22, 1, 0.36, 1), filter 600ms ease;
+}
+.hero-carousel-card:hover .hero-card-image {
+  transform: scale(1.08) translate3d(2%, -1%, 0);
+  filter: brightness(1.08) saturate(1.15);
+}
+.hero-carousel-card {
+  transition: box-shadow 300ms ease;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+}
+.hero-card-glow-coral:hover {
+  box-shadow:
+    0 26px 70px rgba(0, 0, 0, 0.45),
+    0 0 0 2px rgba(249, 115, 102, 0.75),
+    0 0 38px rgba(249, 115, 102, 0.32);
+}
+.hero-card-glow-teal:hover {
+  box-shadow:
+    0 26px 70px rgba(0, 0, 0, 0.45),
+    0 0 0 2px rgba(45, 212, 191, 0.72),
+    0 0 38px rgba(45, 212, 191, 0.28);
 }
 
 /* Custom scrollbar */

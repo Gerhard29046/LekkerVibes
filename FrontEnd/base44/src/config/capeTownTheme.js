@@ -15,15 +15,16 @@ export const capeTownTheme = {
     images: capeTownImages.hero,
   },
 
+  // Deliberately only 3 — the rest of the category set (Wellness, Live
+  // Music, Art & Culture, Family Friendly, Outdoor Adventures) is still
+  // reachable via Discover's own category filters and the "What to do in
+  // Cape Town" section (capeTownTheme.whatToDo below), just not duplicated
+  // as hero shortcuts. Each has its own gradient + icon per the hero visual
+  // spec, rather than the single flat glass-dark pill used elsewhere.
   shortcuts: [
-    { label: 'Hiking', category: 'Hiking', colour: 'leaf' },
-    { label: 'Markets', category: 'Food & Markets', colour: 'coral' },
-    { label: 'Food & Drinks', category: 'Social & Dining', colour: 'peach' },
-    { label: 'Wellness', category: 'Yoga & Wellness', colour: 'sky' },
-    { label: 'Live Music', category: 'Gaming', colour: 'ocean' },
-    { label: 'Art & Culture', category: 'Book Club', colour: 'teal' },
-    { label: 'Family Friendly', mood: 'Something chilled', colour: 'coral' },
-    { label: 'Outdoor Adventures', category: 'Surfing', colour: 'sky' },
+    { label: 'Hiking', category: 'Hiking', icon: 'mountain', gradient: 'linear-gradient(135deg, #0F766E, #16A085)' },
+    { label: 'Markets', category: 'Food & Markets', icon: 'shopping-basket', gradient: 'linear-gradient(135deg, #C77716, #E59A2F)' },
+    { label: 'Food & Drinks', category: 'Social & Dining', icon: 'utensils', gradient: 'linear-gradient(135deg, #F97366, #FB806B)' },
   ],
 
   whatToDo: [

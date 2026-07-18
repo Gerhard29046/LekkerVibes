@@ -32,7 +32,7 @@ export default function CapeTownEvents({ reduceMotion }) {
 
   return (
     <section className="py-16 sm:py-24 px-4 sm:px-6 max-w-7xl mx-auto">
-      <SectionHeading eyebrow="WHAT'S ON" title="Events happening in Cape Town" viewAllTo="/discover?city=Cape%20Town" reduceMotion={reduceMotion} accent="text-ocean" />
+      <SectionHeading eyebrow="WHAT'S ON" title="Events happening in Cape Town" viewAllTo="/discover?city=Cape%20Town" reduceMotion={reduceMotion} accent="text-[#7DD3FC]" />
 
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -41,9 +41,9 @@ export default function CapeTownEvents({ reduceMotion }) {
           ))}
         </div>
       ) : events.length === 0 ? (
-        <div className="text-center py-16 text-charcoal/50">
+        <div className="text-center py-16 text-white/60">
           <p className="text-sm">No Cape Town events on the calendar yet.</p>
-          <Link to="/create-activity" className="text-ocean text-sm font-medium mt-2 inline-block">Create the first one →</Link>
+          <Link to="/create-activity" className="text-[#7DD3FC] hover:text-white text-sm font-medium mt-2 inline-block transition-colors">Create the first one →</Link>
         </div>
       ) : (
         <motion.div
@@ -136,7 +136,7 @@ function EventCard({ event }) {
       </div>
 
       <div className="p-4">
-        <Link to={`/activity/${event.id}`} className="font-heading font-semibold text-charcoal text-base line-clamp-1 hover:text-ocean transition-colors">
+        <Link to={`/activity/${event.id}`} className="font-body font-semibold text-charcoal text-base line-clamp-1 hover:text-ocean transition-colors">
           {event.title}
         </Link>
         <div className="flex items-center gap-3 text-xs text-charcoal/60 mt-1.5 mb-2">

@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Search, MapPin, Sparkles, ArrowRight, ChevronDown } from 'lucide-react';
 import { useLocation } from '@/hooks/useLocation.jsx';
 import { useClickOutside } from '@/hooks/useClickOutside.jsx';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 
 // Only 3 moods on the hero by design — the rest live in the full Discover
@@ -104,35 +104,45 @@ export default function HeroSection() {
               {/* Location */}
               <div ref={locationRef} className="relative">
                 <button
-                  onClick={() => setShowLocationDropdown(!showLocationDropdown)}
+                  onClick={() => setShowLocationDropdown((cur) => !cur)}
                   aria-haspopup="listbox"
                   aria-expanded={showLocationDropdown}
+                  aria-controls="hero-location-listbox"
                   className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white/50 text-sm text-charcoal w-full sm:w-auto"
                 >
                   <MapPin className="w-4 h-4 text-coral shrink-0" />
                   <span className="truncate">{selectedCity}</span>
-                  <ChevronDown className="w-3.5 h-3.5 text-charcoal/40 shrink-0" />
+                  <ChevronDown className={`w-3.5 h-3.5 text-charcoal/40 shrink-0 transition-transform ${showLocationDropdown ? 'rotate-180' : ''}`} />
                 </button>
-                {showLocationDropdown && (
-                  <div
-                    role="listbox"
-                    className="absolute top-full mt-2 left-0 right-0 sm:right-auto bg-white rounded-xl shadow-xl border border-sand p-2 min-w-[180px] max-h-[60vh] overflow-y-auto z-40"
-                  >
-                    {cities.map(city => (
-                      <button
-                        key={city}
-                        role="option"
-                        aria-selected={selectedCity === city}
-                        onClick={() => { setSelectedCity(city); setShowLocationDropdown(false); }}
-                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                          selectedCity === city ? 'bg-ocean/10 text-ocean font-medium' : 'hover:bg-sand'
-                        }`}
-                      >
-                        {city}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <AnimatePresence>
+                  {showLocationDropdown && (
+                    <motion.div
+                      id="hero-location-listbox"
+                      role="listbox"
+                      initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                      transition={{ duration: 0.18 }}
+                      className="absolute left-0 top-[calc(100%+8px)] z-50 min-w-full sm:min-w-[220px] max-w-[calc(100vw-24px)] overflow-hidden rounded-2xl border border-white/40 bg-white/95 shadow-2xl backdrop-blur-xl"
+                    >
+                      <div className="max-h-80 overflow-y-auto p-2">
+                        {cities.map(city => (
+                          <button
+                            key={city}
+                            role="option"
+                            aria-selected={selectedCity === city}
+                            onClick={() => { setSelectedCity(city); setShowLocationDropdown(false); }}
+                            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                              selectedCity === city ? 'bg-ocean/10 text-ocean font-medium' : 'hover:bg-sand'
+                            }`}
+                          >
+                            {city}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* Explore button */}

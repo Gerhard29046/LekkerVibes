@@ -14,9 +14,11 @@ const PRICE_LABELS = {
 // A LekkerVibes-styled card for a real Google Places (New) result — used by
 // the restaurant/gallery/culture homepage sections. `size="large"` gives the
 // editorial one-big-card-beside-smaller-ones gallery layout its featured
-// tile; `variant="editorial"` swaps the hover treatment to a monochrome
-// -to-colour reveal instead of the standard image-zoom.
-export default function PlaceCard({ place, size = 'normal', variant = 'standard', reduceMotion }) {
+// tile. The grayscale-to-colour treatment for the gallery section is a
+// scroll-triggered filter on the wrapping element in CapeTownArtGalleries
+// itself (not here), since CSS `filter` on a parent already recolours
+// everything painted inside it, image included.
+export default function PlaceCard({ place, size = 'normal', reduceMotion }) {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [saved, setSaved] = useState(false);
@@ -57,9 +59,7 @@ export default function PlaceCard({ place, size = 'normal', variant = 'standard'
           src={imageSrc}
           alt={place.name}
           loading="lazy"
-          className={`w-full h-full object-cover transition-all duration-500 group-hover:scale-105 ${
-            variant === 'editorial' ? 'grayscale group-hover:grayscale-0' : ''
-          }`}
+          className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
         {place.category && (
@@ -87,7 +87,7 @@ export default function PlaceCard({ place, size = 'normal', variant = 'standard'
       </div>
 
       <div className="p-4">
-        <h3 className={`font-heading font-semibold text-charcoal line-clamp-1 group-hover:text-ocean transition-colors ${size === 'large' ? 'text-lg' : 'text-base'}`}>
+        <h3 className={`font-body font-semibold text-charcoal line-clamp-1 group-hover:text-ocean transition-colors ${size === 'large' ? 'text-lg' : 'text-base'}`}>
           {place.name}
         </h3>
         <div className="flex items-center gap-3 text-xs text-charcoal/60 mt-1.5 mb-2">

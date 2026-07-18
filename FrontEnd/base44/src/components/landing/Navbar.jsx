@@ -11,16 +11,23 @@ import MessagesDropdown from './MessagesDropdown';
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [cityOpen, setCityOpen] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
+  // One state for every navbar-level dropdown (city, create, messages,
+  // notifications) instead of independent booleans — opening any one of
+  // them closes whichever other one was open, rather than letting them
+  // stack up simultaneously.
+  const [openMenu, setOpenMenu] = useState(null); // 'city' | 'create' | 'messages' | 'notifications' | null
+  const cityOpen = openMenu === 'city';
+  const createOpen = openMenu === 'create';
   const { user } = useAuth();
   const { selectedCity, setSelectedCity, cities } = useLocation();
-  const { pathname } = useRouterLocation();
-  const closeCity = useCallback(() => setCityOpen(false), []);
+  const { pathname, search } = useRouterLocation();
+  const closeCity = useCallback(() => setOpenMenu((cur) => (cur === 'city' ? null : cur)), []);
+  const closeCreate = useCallback(() => setOpenMenu((cur) => (cur === 'create' ? null : cur)), []);
   const cityRef = useClickOutside(cityOpen, closeCity);
+  const createRef = useClickOutside(createOpen, closeCreate);
 
-  // Never leave the dropdown open across a navigation.
-  useEffect(() => { setCityOpen(false); }, [pathname]);
+  // Never leave a navbar dropdown open across a navigation.
+  useEffect(() => { setOpenMenu(null); setMobileOpen(false); }, [pathname, search]);
 
   const navLinks = [
     { label: 'Home', to: '/' },
@@ -44,30 +51,33 @@ export default function Navbar() {
           {/* City selector */}
           <div ref={cityRef} className="relative hidden md:block">
             <button
-              onClick={() => setCityOpen(!cityOpen)}
+              onClick={() => setOpenMenu((cur) => (cur === 'city' ? null : 'city'))}
               aria-haspopup="listbox"
               aria-expanded={cityOpen}
+              aria-controls="navbar-city-listbox"
               className="flex items-center gap-1.5 text-sm font-medium text-charcoal/70 hover:text-ocean transition-colors px-3 py-1.5 rounded-full hover:bg-ocean/5"
             >
               <MapPin className="w-3.5 h-3.5 text-coral" />
               {selectedCity}
-              <ChevronDown className="w-3.5 h-3.5" />
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${cityOpen ? 'rotate-180' : ''}`} />
             </button>
             <AnimatePresence>
               {cityOpen && (
                 <motion.div
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
+                  id="navbar-city-listbox"
+                  initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                  transition={{ duration: 0.18 }}
                   role="listbox"
-                  className="absolute top-full mt-2 left-0 bg-white rounded-xl shadow-xl border border-sand p-2 min-w-[180px] max-h-[60vh] overflow-y-auto z-[60]"
+                  className="absolute left-0 top-[calc(100%+8px)] z-50 min-w-[180px] max-h-80 overflow-y-auto rounded-xl border border-sand bg-white p-2 shadow-2xl"
                 >
                   {cities.map(city => (
                     <button
                       key={city}
                       role="option"
                       aria-selected={selectedCity === city}
-                      onClick={() => { setSelectedCity(city); setCityOpen(false); }}
+                      onClick={() => { setSelectedCity(city); setOpenMenu(null); }}
                       className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                         selectedCity === city ? 'bg-ocean/10 text-ocean font-medium' : 'hover:bg-sand text-charcoal'
                       }`}
@@ -99,27 +109,35 @@ export default function Navbar() {
               <>
                 {/* Create dropdown */}
                 {(FEATURES.events || FEATURES.communities) && (
-                  <div className="relative">
-                    <button onClick={() => setCreateOpen(!createOpen)}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-ocean/10 text-ocean text-sm font-semibold rounded-full hover:bg-ocean/20 transition-colors">
+                  <div ref={createRef} className="relative">
+                    <button
+                      onClick={() => setOpenMenu((cur) => (cur === 'create' ? null : 'create'))}
+                      aria-haspopup="menu"
+                      aria-expanded={createOpen}
+                      aria-controls="navbar-create-menu"
+                      className="flex items-center gap-1.5 px-4 py-2 bg-ocean/10 text-ocean text-sm font-semibold rounded-full hover:bg-ocean/20 transition-colors"
+                    >
                       <Plus className="w-3.5 h-3.5" /> Create
                     </button>
                     <AnimatePresence>
                       {createOpen && (
                         <motion.div
-                          initial={{ opacity: 0, y: -4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -4 }}
-                          className="absolute top-full mt-1 right-0 bg-white rounded-xl shadow-xl border border-sand p-2 min-w-[170px]"
+                          id="navbar-create-menu"
+                          role="menu"
+                          initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                          transition={{ duration: 0.18 }}
+                          className="absolute right-0 top-[calc(100%+8px)] z-50 min-w-[170px] overflow-hidden rounded-xl border border-sand bg-white p-2 shadow-2xl"
                         >
                           {FEATURES.events && (
-                            <Link to="/create-activity" onClick={() => setCreateOpen(false)}
+                            <Link to="/create-activity" role="menuitem" onClick={() => setOpenMenu(null)}
                               className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-charcoal hover:bg-sand transition-colors font-medium">
                               <Plus className="w-4 h-4 text-coral" /> New Activity
                             </Link>
                           )}
                           {FEATURES.communities && (
-                            <Link to="/create-club" onClick={() => setCreateOpen(false)}
+                            <Link to="/create-club" role="menuitem" onClick={() => setOpenMenu(null)}
                               className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-charcoal hover:bg-sand transition-colors font-medium">
                               <Plus className="w-4 h-4 text-teal" /> New Group
                             </Link>
@@ -129,8 +147,14 @@ export default function Navbar() {
                     </AnimatePresence>
                   </div>
                 )}
-                <MessagesDropdown />
-                <NotificationsBell />
+                <MessagesDropdown
+                  open={openMenu === 'messages'}
+                  onOpenChange={(next) => setOpenMenu(next ? 'messages' : null)}
+                />
+                <NotificationsBell
+                  open={openMenu === 'notifications'}
+                  onOpenChange={(next) => setOpenMenu(next ? 'notifications' : null)}
+                />
                 <Link to="/profile" className="w-9 h-9 rounded-full bg-gradient-to-br from-ocean to-teal flex items-center justify-center text-white font-bold text-sm hover:shadow-md transition-all">
                   {user.displayName ? user.displayName[0].toUpperCase() : <User className="w-4 h-4" />}
                 </Link>

@@ -5,9 +5,9 @@ import React from 'react';
 // of each one improvising its own wording/placement.
 export default function GooglePlaceAttribution({ className = '' }) {
   return (
-    <p className={`text-[11px] text-charcoal/40 ${className}`}>
+    <p className={`text-[11px] text-white/50 ${className}`}>
       Place data{' '}
-      <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer" className="underline hover:text-charcoal/60 transition-colors">
+      <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer" className="underline hover:text-white/75 transition-colors">
         © Google
       </a>
     </p>

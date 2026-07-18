@@ -20,23 +20,42 @@ export default function CapeTownAreaExplorer({ reduceMotion }) {
         accent="text-sky"
       />
 
-      {/* Mobile: horizontal scroll. Desktop: editorial grid. */}
+      {/* Mobile: horizontal scroll. Desktop: editorial grid. Cards enter with
+          a slight alternating rotation that settles flat — a gentle "fan"
+          rather than a plain fade, using only transform/opacity. */}
       <div className="sm:hidden -mx-4 px-4 overflow-x-auto no-scrollbar">
         <div className="flex gap-4 w-max pb-2">
           {capeTownTheme.areas.map((area, i) => (
-            <div key={area.slug} className="w-[78vw] shrink-0">
+            <FanIn key={area.slug} index={i} reduceMotion={reduceMotion} className="w-[78vw] shrink-0">
               <AreaCard area={area} variant={REVEAL_VARIANTS[i % REVEAL_VARIANTS.length]} reduceMotion={reduceMotion} />
-            </div>
+            </FanIn>
           ))}
         </div>
       </div>
 
       <div className="hidden sm:grid grid-cols-2 lg:grid-cols-4 gap-5">
         {capeTownTheme.areas.map((area, i) => (
-          <AreaCard key={area.slug} area={area} variant={REVEAL_VARIANTS[i % REVEAL_VARIANTS.length]} reduceMotion={reduceMotion} />
+          <FanIn key={area.slug} index={i} reduceMotion={reduceMotion}>
+            <AreaCard area={area} variant={REVEAL_VARIANTS[i % REVEAL_VARIANTS.length]} reduceMotion={reduceMotion} />
+          </FanIn>
         ))}
       </div>
     </section>
+  );
+}
+
+function FanIn({ index, reduceMotion, className = '', children }) {
+  const rotate = index % 2 === 0 ? -6 : 6;
+  return (
+    <motion.div
+      initial={reduceMotion ? false : { opacity: 0, y: 30, rotate, scale: 0.94 }}
+      whileInView={{ opacity: 1, y: 0, rotate: 0, scale: 1 }}
+      viewport={{ once: true, amount: 0.3 }}
+      transition={{ duration: 0.6, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
+      className={className}
+    >
+      {children}
+    </motion.div>
   );
 }
 
@@ -55,7 +74,7 @@ function AreaCard({ area, variant, reduceMotion }) {
         imgClassName="group-hover:scale-110 transition-transform duration-500"
       />
       <div className="p-4">
-        <h3 className="font-heading font-semibold text-charcoal text-base mb-1 group-hover:text-ocean transition-colors">{area.name}</h3>
+        <h3 className="font-body font-semibold text-charcoal text-base mb-1 group-hover:text-ocean transition-colors">{area.name}</h3>
         <p className="text-xs text-charcoal/60 line-clamp-2 mb-3">{area.description}</p>
         <motion.span
           whileHover={reduceMotion ? {} : { x: 4 }}

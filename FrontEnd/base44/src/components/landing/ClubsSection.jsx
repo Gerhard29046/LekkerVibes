@@ -39,7 +39,7 @@ export default function ClubsSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.1 }}
-            className="font-heading text-2xl sm:text-3xl md:text-4xl font-bold text-charcoal"
+            className="font-body text-2xl sm:text-3xl md:text-4xl font-bold text-charcoal"
           >
             Popular communities in {selectedCity}
           </motion.h2>
@@ -87,7 +87,7 @@ export default function ClubsSection() {
                   </div>
                   <div className="p-4">
                     <div className="flex items-start gap-2 mb-2">
-                      <h3 className="font-heading font-semibold text-charcoal text-base line-clamp-1 flex-1 group-hover:text-ocean transition-colors">
+                      <h3 className="font-body font-semibold text-charcoal text-base line-clamp-1 flex-1 group-hover:text-ocean transition-colors">
                         {club.name}
                       </h3>
                     </div>

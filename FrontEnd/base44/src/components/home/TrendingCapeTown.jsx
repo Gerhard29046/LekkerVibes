@@ -47,7 +47,8 @@ export default function TrendingCapeTown({ reduceMotion }) {
   if (!FEATURES.events && !FEATURES.communities) return null;
 
   return (
-    <section className="py-16 sm:py-24 px-4 sm:px-6 max-w-7xl mx-auto">
+    <section className="py-16 sm:py-24" style={{ background: 'linear-gradient(135deg, #0d4c58, #123843)' }}>
+      <div className="px-4 sm:px-6 max-w-7xl mx-auto">
       <SectionHeading
         eyebrow={<span className="flex items-center gap-2"><TrendingUp className="w-4 h-4" /> TRENDING IN CAPE TOWN</span>}
         title="What Cape Town is buzzing about"
@@ -68,8 +69,8 @@ export default function TrendingCapeTown({ reduceMotion }) {
           ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="text-center py-16 text-charcoal/50">
-          <TrendingUp className="w-10 h-10 mx-auto mb-3 text-charcoal/20" />
+        <div className="text-center py-16 text-white/60">
+          <TrendingUp className="w-10 h-10 mx-auto mb-3 text-white/25" />
           <p className="text-sm">Nothing trending in Cape Town yet — be the first to create something.</p>
         </div>
       ) : (
@@ -81,12 +82,13 @@ export default function TrendingCapeTown({ reduceMotion }) {
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5"
         >
           {items.map((item) => (
-            <motion.div key={`${item.kind}-${item.id}`} variants={reduceMotion ? undefined : staggerItem('up')}>
+            <motion.div key={`${item.kind}-${item.id}`} variants={reduceMotion ? undefined : staggerItem('right')}>
               <TrendingCard item={item} />
             </motion.div>
           ))}
         </motion.div>
       )}
+      </div>
     </section>
   );
 }
@@ -108,7 +110,7 @@ function TrendingCard({ item }) {
         </span>
       </div>
       <div className="p-4">
-        <h3 className="font-heading font-semibold text-charcoal text-base line-clamp-1 group-hover:text-ocean transition-colors mb-2">
+        <h3 className="font-body font-semibold text-charcoal text-base line-clamp-1 group-hover:text-ocean transition-colors mb-2">
           {item.title}
         </h3>
         <div className="flex items-center gap-1.5 text-xs text-charcoal/60">

@@ -29,7 +29,7 @@ export default function CTASection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.1 }}
-              className="font-heading text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4"
+              className="font-body text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4"
             >
               Ready to find your vibe?
             </motion.h2>

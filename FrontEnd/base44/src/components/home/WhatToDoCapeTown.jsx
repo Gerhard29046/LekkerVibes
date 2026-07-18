@@ -42,9 +42,15 @@ export default function WhatToDoCapeTown({ reduceMotion }) {
 
   return (
     <section className="py-16 sm:py-24 px-4 sm:px-6 max-w-7xl mx-auto">
-      <SectionHeading eyebrow="EXPLORE" title="What to do in Cape Town" reduceMotion={reduceMotion} accent="text-teal" />
+      <SectionHeading eyebrow="EXPLORE" title="What to do in Cape Town" reduceMotion={reduceMotion} accent="text-[#5EEAD4]" />
 
-      <div className="flex flex-wrap gap-3 mb-10">
+      <motion.div
+        initial={reduceMotion ? false : 'hidden'}
+        whileInView="show"
+        viewport={{ once: true, amount: 0.4 }}
+        variants={reduceMotion ? undefined : { hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
+        className="flex flex-wrap gap-3 mb-10"
+      >
         {capeTownTheme.whatToDo.map((tab) => {
           const Icon = ICONS[tab.label] || Star;
           const c = COLOURS[tab.colour] || COLOURS.teal;
@@ -52,6 +58,10 @@ export default function WhatToDoCapeTown({ reduceMotion }) {
           return (
             <motion.button
               key={tab.label}
+              variants={reduceMotion ? undefined : {
+                hidden: { opacity: 0, scale: 0.7, y: 14 },
+                show: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 320, damping: 16 } },
+              }}
               onClick={() => setActive(tab)}
               whileHover={reduceMotion ? {} : { y: -3 }}
               whileTap={reduceMotion ? {} : { scale: 0.97 }}
@@ -72,7 +82,7 @@ export default function WhatToDoCapeTown({ reduceMotion }) {
             </motion.button>
           );
         })}
-      </div>
+      </motion.div>
 
       <AnimatePresence mode="wait">
         <motion.div
@@ -95,7 +105,7 @@ export default function WhatToDoCapeTown({ reduceMotion }) {
               ))}
             </div>
           ) : results.length === 0 ? (
-            <div className="text-center py-16 text-charcoal/50">
+            <div className="text-center py-16 text-white/60">
               <p className="text-sm">Nothing found for {active.label.toLowerCase()} right now.</p>
             </div>
           ) : (

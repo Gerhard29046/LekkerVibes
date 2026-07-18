@@ -27,13 +27,12 @@ function describe(n) {
   }
 }
 
-export default function NotificationsBell() {
+export default function NotificationsBell({ open, onOpenChange }) {
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState(null);
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => onOpenChange(false), [onOpenChange]);
   const ref = useClickOutside(open, close);
 
   const load = useCallback(() => {
@@ -49,6 +48,7 @@ export default function NotificationsBell() {
 
   const handleOpenItem = (n) => {
     if (!n.read) notificationsApi.markRead(user.uid, n.id).then(() => setItems((cur) => cur.map((x) => x.id === n.id ? { ...x, read: true } : x)));
+    close();
   };
 
   const handleAccept = async (e, n) => {
@@ -80,7 +80,14 @@ export default function NotificationsBell() {
 
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen(!open)} className="relative p-2 rounded-full hover:bg-ocean/5 transition-colors" aria-label="Notifications">
+      <button
+        onClick={() => onOpenChange(!open)}
+        className="relative p-2 rounded-full hover:bg-ocean/5 transition-colors"
+        aria-label="Notifications"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls="navbar-notifications-menu"
+      >
         <Bell className="w-5 h-5 text-charcoal/70" />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-0.5 rounded-full bg-coral text-white text-[10px] font-bold flex items-center justify-center">
@@ -91,10 +98,13 @@ export default function NotificationsBell() {
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            className="absolute top-full right-0 mt-2 w-80 max-w-[90vw] max-h-[70vh] overflow-y-auto bg-white rounded-xl shadow-xl border border-sand z-[60]"
+            id="navbar-notifications-menu"
+            role="menu"
+            initial={{ opacity: 0, y: -8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ duration: 0.18 }}
+            className="absolute right-0 top-[calc(100%+8px)] z-50 w-80 max-w-[calc(100vw-24px)] max-h-80 overflow-y-auto rounded-xl border border-sand bg-white shadow-2xl"
           >
             <div className="px-4 py-3 border-b border-sand">
               <h3 className="font-body font-semibold text-sm text-charcoal">Notifications</h3>
@@ -111,6 +121,7 @@ export default function NotificationsBell() {
                     <Link
                       key={n.id}
                       to={n.fromUid ? `/u/${n.fromUid}` : '#'}
+                      role="menuitem"
                       onClick={() => handleOpenItem(n)}
                       className={`block px-4 py-3 hover:bg-sand/50 transition-colors ${!n.read ? 'bg-ocean/5' : ''}`}
                     >
