@@ -13,12 +13,10 @@ export const FEATURES = {
   events: true,
   communities: true,
   // The full 3-panel Messages page (community switcher + rich thread +
-  // context panel) — off until the message-type extension (reactions,
-  // image/event cards) and the member-list popup are both tested
-  // end-to-end against the real Firestore project. The existing simple
-  // single-thread chat (GroupChat.jsx, /chat/:conversationId) stays live
-  // regardless of this flag for event chats.
-  messages: false,
+  // context panel). The existing simple single-thread chat (GroupChat.jsx,
+  // /chat/:conversationId) stays live regardless of this flag for event
+  // chats.
+  messages: true,
   locations: false,
   profileEdit: true,
   uploads: true,
