@@ -22,6 +22,7 @@ export default function CreateClub() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [imagePreview, setImagePreview] = useState('');
+  const [createError, setCreateError] = useState('');
   const [form, setForm] = useState({
     name: '', description: '', city: selectedCity,
     category: '', rules: '', imageURL: null, joinPolicy: 'open',
@@ -48,9 +49,15 @@ export default function CreateClub() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
+    setCreateError('');
     try {
       const { id } = await communitiesApi.create(form, user);
-      navigate(`/club/${id}`);
+      // Creating a community is joining it — land straight in its chat
+      // rather than the read-only about page, so there's no separate
+      // "now go find it" step.
+      navigate(`/messages/${id}`);
+    } catch (err) {
+      setCreateError(err.message || 'Something went wrong creating this community — please try again.');
     } finally {
       setSaving(false);
     }
@@ -152,6 +159,8 @@ export default function CreateClub() {
               rows={4} placeholder="Set expectations for members: behaviour, respect, communication..."
               className={`${inputCls} resize-none`} />
           </div>
+
+          {createError && <p className="text-sm text-coral text-center">{createError}</p>}
 
           <button type="submit" disabled={saving || uploading}
             className="w-full py-3.5 bg-gradient-to-r from-ocean to-teal text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-ocean/20 transition-all disabled:opacity-60 flex items-center justify-center gap-2 text-sm">

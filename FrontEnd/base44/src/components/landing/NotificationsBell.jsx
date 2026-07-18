@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Bell, UserPlus, UserCheck, Link2, Loader2, Check, X as XIcon, CalendarPlus, CalendarClock, MessageCircle, CheckCheck } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Bell, UserPlus, UserCheck, Link2, Loader2, Check, X as XIcon, CalendarPlus, CalendarClock, MessageCircle, CheckCheck, Users } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/AuthContext';
 import { notificationsApi } from '@/api/notificationsApi';
 import { followApi } from '@/api/followApi';
+import { communitiesApi } from '@/api/communitiesApi';
 import { useClickOutside } from '@/hooks/useClickOutside.jsx';
 import moment from 'moment';
 
@@ -17,6 +18,7 @@ const ICONS = {
   event_join: CalendarPlus,
   event_update: CalendarClock,
   group_message: MessageCircle,
+  community_invite: Users,
 };
 
 function describe(n) {
@@ -27,8 +29,9 @@ function describe(n) {
     case 'social_access_approved': return 'approved your social-link request';
     case 'social_access_revoked': return 'revoked your social-link access';
     case 'event_join': return `joined ${n.eventTitle || 'your activity'}`;
-    case 'event_update': return `${n.eventTitle || 'An activity you joined'} was cancelled`;
+    case 'event_update': return `${n.eventTitle || 'An activity you joined'} was ${n.changeType === 'updated' ? 'updated' : 'cancelled'}`;
     case 'group_message': return `${n.count > 1 ? `${n.count} new messages` : 'New message'} in ${n.groupName || 'a group chat'}`;
+    case 'community_invite': return `invited you to join ${n.communityName || 'a community'}`;
     default: return 'sent a notification';
   }
 }
@@ -38,6 +41,7 @@ function describe(n) {
 function targetPath(n) {
   if (n.type === 'group_message') return `/chat/${n.targetId}`;
   if (n.type === 'event_join' || n.type === 'event_update') return `/activity/${n.targetId}`;
+  if (n.type === 'community_invite') return `/club/${n.targetId}`;
   return n.fromUid ? `/u/${n.fromUid}` : '#';
 }
 
@@ -56,6 +60,7 @@ function groupByRecency(items) {
 
 export default function NotificationsBell({ open, onOpenChange }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState(null);
@@ -112,6 +117,35 @@ export default function NotificationsBell({ open, onOpenChange }) {
     try {
       await followApi.declineRequest(n.fromUid, user.uid);
       await notificationsApi.markRead(user.uid, n.id);
+      setItems((cur) => cur.filter((x) => x.id !== n.id));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleAcceptInvite = async (e, n) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setBusyId(n.id);
+    try {
+      // Self-join, same as any other join — the invite just told them
+      // about it (and carried the token along for an invite-only group).
+      await communitiesApi.join(n.targetId, user, n.inviteToken || undefined);
+      await notificationsApi.remove(user.uid, n.id);
+      setItems((cur) => cur.filter((x) => x.id !== n.id));
+      close();
+      navigate(`/messages/${n.targetId}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleDeclineInvite = async (e, n) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setBusyId(n.id);
+    try {
+      await notificationsApi.remove(user.uid, n.id);
       setItems((cur) => cur.filter((x) => x.id !== n.id));
     } finally {
       setBusyId(null);
@@ -191,6 +225,18 @@ export default function NotificationsBell({ open, onOpenChange }) {
                                     <Check className="w-3 h-3" /> Accept
                                   </button>
                                   <button onClick={(e) => handleDecline(e, n)} disabled={busyId === n.id}
+                                    className="flex items-center gap-1 px-2.5 py-1 bg-sand text-charcoal rounded-lg text-xs font-semibold hover:bg-sand/80 transition-colors disabled:opacity-50">
+                                    <XIcon className="w-3 h-3" /> Decline
+                                  </button>
+                                </div>
+                              )}
+                              {n.type === 'community_invite' && (
+                                <div className="flex gap-2 mt-2">
+                                  <button onClick={(e) => handleAcceptInvite(e, n)} disabled={busyId === n.id}
+                                    className="flex items-center gap-1 px-2.5 py-1 bg-teal text-white rounded-lg text-xs font-semibold hover:bg-teal/90 transition-colors disabled:opacity-50">
+                                    <Check className="w-3 h-3" /> Join
+                                  </button>
+                                  <button onClick={(e) => handleDeclineInvite(e, n)} disabled={busyId === n.id}
                                     className="flex items-center gap-1 px-2.5 py-1 bg-sand text-charcoal rounded-lg text-xs font-semibold hover:bg-sand/80 transition-colors disabled:opacity-50">
                                     <XIcon className="w-3 h-3" /> Decline
                                   </button>

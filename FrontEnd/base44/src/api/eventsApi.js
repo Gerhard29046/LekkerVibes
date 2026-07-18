@@ -207,8 +207,21 @@ export const eventsApi = {
     return { id: eventRef.id, chatId: eventRef.id };
   },
 
-  update(id, data) {
-    return updateDoc(doc(db, 'events', id), { ...data, updatedAt: serverTimestamp() });
+  // `editor` is optional so existing call sites that don't pass it (none
+  // left after EditActivity.jsx, but keeping the parameter optional rather
+  // than required avoids a hard break for any other caller) still work —
+  // just without the attendee notification.
+  async update(id, data, editor) {
+    // `data` may only carry the fields actually being changed (e.g. just
+    // capacity) — read the title fresh rather than assume it's present.
+    const title = data.title ?? (await getDoc(doc(db, 'events', id))).data()?.title;
+    await updateDoc(doc(db, 'events', id), { ...data, updatedAt: serverTimestamp() });
+    if (editor) {
+      const attendeesSnap = await getDocs(collection(db, 'events', id, 'attendees'));
+      await notificationsApi.notifyEventUpdated(
+        attendeesSnap.docs.map((d) => d.id), editor, { id, title },
+      );
+    }
   },
 
   // Cancelling archives (never deletes) the paired chat, per spec — the

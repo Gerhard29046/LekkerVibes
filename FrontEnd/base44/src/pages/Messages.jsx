@@ -15,6 +15,7 @@ import MessageBubble from '@/components/messages/MessageBubble';
 import MessageComposer from '@/components/messages/MessageComposer';
 import CommunityContextPanel from '@/components/messages/CommunityContextPanel';
 import MemberListModal from '@/components/messages/MemberListModal';
+import InviteMembersModal from '@/components/messages/InviteMembersModal';
 
 export default function Messages() {
   const { communityId } = useParams();
@@ -29,9 +30,9 @@ export default function Messages() {
   const [previewMembers, setPreviewMembers] = useState([]);
   const [messages, setMessages] = useState([]);
   const [isMuted, setIsMuted] = useState(false);
-  const [inviteCopied, setInviteCopied] = useState(false);
   const [pinDismissed, setPinDismissed] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState(null);
   const bottomRef = useRef(null);
 
@@ -98,6 +99,10 @@ export default function Messages() {
     if (!selectedId || !user) return;
     await messagesApi.sendImage(selectedId, url, user);
   };
+  const handleSendAnnouncement = async (text) => {
+    if (!selectedId || !user) return;
+    await messagesApi.sendAnnouncement(selectedId, text, user);
+  };
   const handleToggleReaction = (messageId, emoji) => {
     if (!selectedId || !user) return;
     messagesApi.toggleReaction(selectedId, messageId, emoji, user.uid);
@@ -108,15 +113,17 @@ export default function Messages() {
     else await communitiesApi.muteNotifications(user.uid, selectedId);
     setIsMuted((m) => !m);
   };
-  const handleInvite = async () => {
-    if (!community) return;
-    const url = `${window.location.origin}/club/${community.id}${community.joinPolicy === 'invite_only' ? `?token=${community.inviteToken}` : ''}`;
-    await navigator.clipboard.writeText(url).catch(() => {});
-    setInviteCopied(true);
-    setTimeout(() => setInviteCopied(false), 2000);
-  };
+  const handleInvite = () => setInviteOpen(true);
   const handleLeave = async () => {
     if (!user || !community) return;
+    // The owner can never leave via this action (Firebase/firestore.rules
+    // blocks the write outright) — communities can't go ownerless, and
+    // there's no ownership-transfer flow yet, so the honest option is
+    // "delete the community instead" via Edit, not a silently-rejected leave.
+    if (community.ownerId === user.uid) {
+      window.alert("You're the owner, so you can't leave — delete the community instead from Edit community if you want to shut it down.");
+      return;
+    }
     if (!window.confirm(`Leave ${community.name}?`)) return;
     await communitiesApi.leave(community.id, user.uid);
     navigate('/messages');
@@ -143,6 +150,16 @@ export default function Messages() {
     : null;
   const onlineCount = previewMembers.filter((m) => m.lastActiveAt && (Date.now() - (m.lastActiveAt.toDate ? m.lastActiveAt.toDate() : new Date(m.lastActiveAt)).getTime()) < 2 * 60 * 1000).length;
   const isOrganiser = community?.myMembership?.role === 'organiser' || community?.ownerId === user?.uid;
+  // Owner/moderator badges for message senders — resolved from the same
+  // member preview batch the "Members online" panel already loaded, not a
+  // per-message lookup. Senders outside that first page (a large, mostly-
+  // idle community) simply show no badge — an accepted approximation.
+  const roleForUid = (uid) => {
+    if (!community) return null;
+    if (community.ownerId === uid) return 'owner';
+    const member = previewMembers.find((m) => m.uid === uid);
+    return member?.role === 'organiser' ? 'moderator' : null;
+  };
 
   return (
     <div className="h-screen flex flex-col bg-cream">
@@ -179,10 +196,10 @@ export default function Messages() {
                 isMuted={isMuted}
                 onToggleMute={handleToggleMute}
                 onInvite={handleInvite}
-                inviteCopied={inviteCopied}
                 onOpenMembers={() => setMembersOpen(true)}
                 onLeave={handleLeave}
                 onReport={handleReport}
+                isAdmin={isOrganiser}
                 hasPinned={!!community.pinnedMessageId}
                 onShowPinned={() => {
                   if (community.pinnedMessageId) {
@@ -201,6 +218,7 @@ export default function Messages() {
                     currentUser={user}
                     isOrganiser={isOrganiser}
                     isPinned={community.pinnedMessageId === m.id}
+                    senderRole={roleForUid(m.senderId)}
                     onToggleReaction={handleToggleReaction}
                     onPinToggle={() => handlePinToggle(m.id)}
                     onImageClick={setLightboxUrl}
@@ -209,7 +227,14 @@ export default function Messages() {
                 <div ref={bottomRef} />
               </div>
 
-              <MessageComposer communityName={community.name} onSend={handleSend} onSendImage={handleSendImage} currentUser={user} />
+              <MessageComposer
+                communityName={community.name}
+                onSend={handleSend}
+                onSendImage={handleSendImage}
+                onSendAnnouncement={handleSendAnnouncement}
+                isAdmin={isOrganiser}
+                currentUser={user}
+              />
             </div>
 
             <div className="w-[300px] shrink-0 hidden lg:block border-l border-sand bg-white">
@@ -224,7 +249,16 @@ export default function Messages() {
               />
             </div>
 
-            <MemberListModal open={membersOpen} onOpenChange={setMembersOpen} communityId={community.id} />
+            <MemberListModal
+              open={membersOpen}
+              onOpenChange={setMembersOpen}
+              communityId={community.id}
+              ownerId={community.ownerId}
+              viewerUid={user?.uid}
+              isOwner={community.ownerId === user?.uid}
+              isAdmin={isOrganiser}
+            />
+            <InviteMembersModal open={inviteOpen} onOpenChange={setInviteOpen} community={community} currentUser={user} />
           </>
         )}
       </div>

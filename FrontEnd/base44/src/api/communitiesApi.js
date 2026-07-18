@@ -155,6 +155,13 @@ export const communitiesApi = {
     return deleteDoc(doc(db, 'communities', id, 'members', uid));
   },
 
+  // Owner/organiser removing someone else — same underlying delete as
+  // leave(), just authorized differently (see Firebase/firestore.rules).
+  // Doesn't retroactively touch their past messages, only future access.
+  removeMember(id, targetUid) {
+    return deleteDoc(doc(db, 'communities', id, 'members', targetUid));
+  },
+
   members(id) {
     return getDocs(collection(db, 'communities', id, 'members')).then((snap) =>
       snap.docs.map((d) => d.data())

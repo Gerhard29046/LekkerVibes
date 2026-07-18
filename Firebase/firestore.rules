@@ -177,7 +177,7 @@ service cloud.firestore {
                               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count', 'read', 'createdAt', 'fromUid'])));
         allow create: if request.auth != null
                       && request.resource.data.fromUid == request.auth.uid
-                      && request.resource.data.type in ['follow_request', 'social_reveal_request', 'social_access_revoked', 'group_message', 'event_join', 'event_update'];
+                      && request.resource.data.type in ['follow_request', 'social_reveal_request', 'social_access_revoked', 'group_message', 'event_join', 'event_update', 'community_invite'];
       }
     }
 
@@ -317,16 +317,23 @@ service cloud.firestore {
                       && (get(/databases/$(database)/documents/communities/$(communityId)).data.joinPolicy != 'invite_only'
                           || get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId == uid
                           || request.resource.data.joinToken == get(/databases/$(database)/documents/communities/$(communityId)).data.inviteToken);
-        // Self-leave, except the owner (must transfer/delete the community
-        // instead of abandoning it with no owner).
-        allow delete: if request.auth != null && request.auth.uid == uid
-                      && get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId != uid;
-        // Role changes to *another* member: only the owner or an existing
-        // organiser may promote/demote. A member can never write their own
-        // role change through this path.
-        allow update: if request.auth != null && request.auth.uid != uid
-                      && (get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId == request.auth.uid
+        // Two ways a member doc gets deleted: (1) self-leave, blocked for
+        // the owner (must delete the community instead — never leave it
+        // ownerless); (2) an owner/organiser removing someone else, which
+        // can never target the owner's own row (only the owner can ever
+        // remove that one, via self-leave, which is itself blocked — i.e.
+        // the owner's row is simply undeletable through this path, by
+        // design).
+        allow delete: if request.auth != null
+                      && get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId != uid
+                      && (request.auth.uid == uid
+                          || get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId == request.auth.uid
                           || get(/databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid)).data.role == 'organiser');
+        // Promote/demote is owner-only — an organiser/moderator can add
+        // and remove regular members (above) but never manage other
+        // moderators, per the role summary.
+        allow update: if request.auth != null && request.auth.uid != uid
+                      && get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId == request.auth.uid;
       }
 
       // "Following" a community/group is a lightweight public subscription
@@ -357,6 +364,16 @@ service cloud.firestore {
         return request.auth != null
           && exists(/databases/$(database)/documents/events/$(eventId)/attendees/$(request.auth.uid));
       }
+      // For a group-linked event, the community's owner/organiser can
+      // edit or cancel it too, not just the original host — per the admin
+      // -controls spec ("Moderator: ...edit events tied to the group").
+      // `cid != null` must short-circuit first: get() on a null path
+      // throws, it doesn't just evaluate falsy.
+      function isCommunityAdminFor(cid) {
+        return cid != null && request.auth != null
+          && (get(/databases/$(database)/documents/communities/$(cid)).data.ownerId == request.auth.uid
+              || get(/databases/$(database)/documents/communities/$(cid)/members/$(request.auth.uid)).data.role == 'organiser');
+      }
       // A plain rule has no way to check "did the caller's query include a
       // `where('inviteToken','==', theRealToken)` filter" — reads only ever
       // see resource.data and request.auth, never the request's own filter
@@ -383,12 +400,15 @@ service cloud.firestore {
                     && request.resource.data.visibility in ['public', 'members', 'invite_link']
                     && (request.resource.data.communityId == null
                         || exists(/databases/$(database)/documents/communities/$(request.resource.data.communityId)/members/$(request.auth.uid)));
-      // Only the organiser may edit or cancel; organiserId itself is fixed.
+      // The host, or (for a group-linked event) the community's owner/
+      // organiser, may edit or cancel; organiserId itself is fixed.
       // Cancelling sets status='cancelled' rather than deleting — the
       // paired chat is archived (a client-side flag flip), never deleted.
-      allow update: if request.auth != null && resource.data.organiserId == request.auth.uid
-                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['organiserId']);
-      allow delete: if request.auth != null && resource.data.organiserId == request.auth.uid;
+      allow update: if request.auth != null
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['organiserId'])
+                    && (resource.data.organiserId == request.auth.uid || isCommunityAdminFor(resource.data.communityId));
+      allow delete: if request.auth != null
+                    && (resource.data.organiserId == request.auth.uid || isCommunityAdminFor(resource.data.communityId));
 
       // status: 'going' | 'interested' | 'waitlisted'. Capacity/waitlist
       // placement is decided client-side (count then write, same accepted
@@ -470,11 +490,21 @@ service cloud.firestore {
                 || exists(/databases/$(database)/documents/communities/$(conversationId)/members/$(request.auth.uid))
                 || exists(/databases/$(database)/documents/events/$(conversationId)/attendees/$(request.auth.uid)));
         }
+        // Announcements are the one message type gated by role — only the
+        // community's owner/organiser (moderator) may post one, per the
+        // admin-controls spec. Only meaningful for community conversations;
+        // event chats have no announcement concept.
+        function canPostAnnouncement() {
+          return conversation().type == 'community'
+            && (get(/databases/$(database)/documents/communities/$(conversation().communityId)).data.ownerId == request.auth.uid
+                || get(/databases/$(database)/documents/communities/$(conversation().communityId)/members/$(request.auth.uid)).data.role == 'organiser');
+        }
 
         allow read: if isMemberOfConversation();
         allow create: if isMemberOfConversation()
           && request.resource.data.senderId == request.auth.uid
-          && request.resource.data.isDeleted == false;
+          && request.resource.data.isDeleted == false
+          && (request.resource.data.type != 'announcement' || canPostAnnouncement());
         // Two distinct update shapes: (1) a sender soft-deleting their own
         // message (isDeleted=true, content cleared) — never hard-delete,
         // a moderator deleting someone else's message goes through the

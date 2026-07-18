@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Crown, ShieldCheck, Megaphone } from 'lucide-react';
 import moment from 'moment';
 import EventMessageCard from './EventMessageCard';
 
@@ -60,14 +61,52 @@ function Reactions({ reactions, currentUid, onToggle, overlay }) {
   return <div className="mt-1.5">{content}</div>;
 }
 
-export default function MessageBubble({ message, currentUser, isOrganiser, isPinned, onToggleReaction, onPinToggle, onImageClick }) {
-  const isOwn = message.senderId === currentUser?.uid;
+// Crown for the owner, a small shield for moderators — visible in the
+// flow of conversation, not just in a settings page. `senderRole` is
+// 'owner' | 'moderator' | null, resolved by the parent from the
+// community's ownerId + member role, not stored on the message itself.
+function AdminBadge({ senderRole }) {
+  if (senderRole === 'owner') {
+    return <Crown className="w-3.5 h-3.5 text-peach" title="Owner" />;
+  }
+  if (senderRole === 'moderator') {
+    return <ShieldCheck className="w-3.5 h-3.5 text-teal" title="Moderator" />;
+  }
+  return null;
+}
+
+export default function MessageBubble({ message, currentUser, isOrganiser, isPinned, senderRole, onToggleReaction, onPinToggle, onImageClick }) {
   const timeLabel = message.createdAt
     ? moment(message.createdAt.toDate ? message.createdAt.toDate() : message.createdAt).format('h:mm A')
     : 'sending…';
 
   if (message.isSystem) {
     return <p className="text-center text-xs text-charcoal/40 py-2">{message.body}</p>;
+  }
+
+  // Announcements stand out from casual chat — a full-width highlighted
+  // card, not a normal avatar+bubble row (they can also be pinned, via the
+  // same mechanic as any other message; that's a separate toggle below).
+  if (message.type === 'announcement' && !message.isDeleted) {
+    return (
+      <div className="my-3 rounded-2xl border border-coral/25 bg-coral/5 p-4">
+        <div className="flex items-center gap-2 mb-1.5">
+          <Megaphone className="w-4 h-4 text-coral shrink-0" />
+          <Link to={`/u/${message.senderId}`} className="text-sm font-semibold text-charcoal hover:text-ocean transition-colors">
+            {message.senderName}
+          </Link>
+          <AdminBadge senderRole={senderRole} />
+          <span className="text-[11px] text-charcoal/40 ml-auto">{timeLabel}</span>
+          {isOrganiser && (
+            <button onClick={onPinToggle} className="text-[11px] font-medium text-charcoal/40 hover:text-ocean transition-colors">
+              {isPinned ? 'Unpin' : 'Pin'}
+            </button>
+          )}
+        </div>
+        <p className="text-sm text-charcoal">{message.body}</p>
+        <Reactions reactions={message.reactions} currentUid={currentUser?.uid} onToggle={(e) => onToggleReaction(message.id, e)} />
+      </div>
+    );
   }
 
   return (
@@ -78,10 +117,11 @@ export default function MessageBubble({ message, currentUser, isOrganiser, isPin
           : <span className="text-white text-xs font-bold">{(message.senderName || 'M')[0].toUpperCase()}</span>}
       </Link>
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-baseline gap-1.5">
           <Link to={`/u/${message.senderId}`} className="text-sm font-semibold text-charcoal hover:text-ocean transition-colors">
             {message.senderName}
           </Link>
+          <AdminBadge senderRole={senderRole} />
           {isOrganiser && (
             <button
               onClick={onPinToggle}

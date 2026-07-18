@@ -44,6 +44,8 @@ export default function EditClub() {
       setForm({
         name: club.name, description: club.description || '', city: club.city,
         category: club.category || '', rules: club.rules || '', imageURL: club.imageURL || null,
+        joinPolicy: club.joinPolicy || 'open',
+        ctaTitle: club.ctaTitle || '', ctaBody: club.ctaBody || '', ctaLinkUrl: club.ctaLinkUrl || '',
       });
       setImagePreview(club.imageURL || '');
     }).finally(() => setLoading(false));
@@ -95,7 +97,12 @@ export default function EditClub() {
     e.preventDefault();
     setSaving(true);
     try {
-      await communitiesApi.update(id, form);
+      await communitiesApi.update(id, {
+        ...form,
+        ctaTitle: form.ctaTitle.trim() || null,
+        ctaBody: form.ctaBody.trim() || null,
+        ctaLinkUrl: form.ctaLinkUrl.trim() || null,
+      });
       navigate(`/club/${id}`);
     } finally {
       setSaving(false);
@@ -159,10 +166,58 @@ export default function EditClub() {
             </div>
           </div>
 
+          <div className="bg-white rounded-2xl p-5 border border-sand space-y-3">
+            <h3 className="font-heading font-semibold text-charcoal text-sm">Who can join</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => set('joinPolicy', 'open')}
+                className={`text-left p-3.5 rounded-xl border text-sm transition-colors ${
+                  form.joinPolicy === 'open' ? 'border-ocean bg-ocean/5' : 'border-sand hover:border-ocean/30'
+                }`}
+              >
+                <p className="font-semibold text-charcoal mb-0.5">Public</p>
+                <p className="text-xs text-charcoal/60">Anyone can join instantly.</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => set('joinPolicy', 'invite_only')}
+                className={`text-left p-3.5 rounded-xl border text-sm transition-colors ${
+                  form.joinPolicy === 'invite_only' ? 'border-ocean bg-ocean/5' : 'border-sand hover:border-ocean/30'
+                }`}
+              >
+                <p className="font-semibold text-charcoal mb-0.5">Invite-only</p>
+                <p className="text-xs text-charcoal/60">Only joinable via a link you share.</p>
+              </button>
+            </div>
+          </div>
+
           <div className="bg-white rounded-2xl p-5 border border-sand">
             <h3 className="font-heading font-semibold text-charcoal text-sm mb-3">Community Guidelines</h3>
             <textarea value={form.rules} onChange={e => set('rules', e.target.value)}
               rows={4} className={`${inputCls} resize-none`} />
+          </div>
+
+          <div className="bg-white rounded-2xl p-5 border border-sand space-y-4">
+            <div>
+              <h3 className="font-heading font-semibold text-charcoal text-sm">Right-panel callout (optional)</h3>
+              <p className="text-xs text-charcoal/50 mt-0.5">Shown at the bottom of the Messages page's community panel. Leave blank to show nothing.</p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-charcoal/60 block mb-1.5">Title</label>
+              <input value={form.ctaTitle} onChange={e => set('ctaTitle', e.target.value)}
+                placeholder="e.g. Love the outdoors?" className={inputCls} />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-charcoal/60 block mb-1.5">Body</label>
+              <textarea value={form.ctaBody} onChange={e => set('ctaBody', e.target.value)}
+                rows={2} placeholder="e.g. Help keep our trails clean." className={`${inputCls} resize-none`} />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-charcoal/60 block mb-1.5">Link URL</label>
+              <input type="url" value={form.ctaLinkUrl} onChange={e => set('ctaLinkUrl', e.target.value)}
+                placeholder="https://..." className={inputCls} />
+            </div>
           </div>
 
           <button type="submit" disabled={saving || uploading}

@@ -128,6 +128,26 @@ export const messagesApi = {
     });
   },
 
+  // Owner/organiser (moderator) only — enforced by Firebase/firestore.rules'
+  // canPostAnnouncement(), not just hidden in the composer UI. Rendered
+  // with a distinct full-width treatment, never a normal avatar+bubble.
+  sendAnnouncement: async (conversationId, text, sender) => {
+    const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+    return addDoc(messagesRef, {
+      type: 'announcement',
+      senderId: sender.uid,
+      senderName: sender.displayName || sender.email || 'Member',
+      senderPhotoURL: sender.photoURL || null,
+      body: text,
+      imageURL: null,
+      eventId: null,
+      reactions: {},
+      isDeleted: false,
+      isSystem: false,
+      createdAt: serverTimestamp(),
+    });
+  },
+
   // Auto-posted when someone hosts a Discover place into this group as an
   // activity (see eventsApi.create()) — never composed manually, so it's
   // not exposed as a general "send" variant callable from the composer.

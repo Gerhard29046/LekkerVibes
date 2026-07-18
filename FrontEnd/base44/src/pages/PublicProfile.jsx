@@ -15,7 +15,7 @@ import Footer from '@/components/landing/Footer';
 import FollowListModal from '@/components/landing/FollowListModal';
 import {
   MapPin, BadgeCheck, ShieldCheck, Calendar, Users, UserPlus, UserCheck, Clock,
-  Instagram, Facebook, Link2, Lock, MoreVertical, Flag, Ban,
+  Instagram, Facebook, Link2, Lock, MoreVertical, Flag, Ban, Crown,
 } from 'lucide-react';
 import moment from 'moment';
 
@@ -347,7 +347,8 @@ export default function PublicProfile() {
             </h3>
             <div className="flex flex-wrap gap-2">
               {clubs.map(c => (
-                <Link key={c.id} to={`/club/${c.id}`} className="px-3 py-1.5 rounded-full bg-white border border-sand text-sm text-charcoal hover:border-ocean/30 transition-colors">
+                <Link key={c.id} to={`/club/${c.id}`} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-sand text-sm text-charcoal hover:border-ocean/30 transition-colors">
+                  {c.myRole === 'organiser' && <Crown className="w-3.5 h-3.5 text-peach" title="Admin" />}
                   {c.name}
                 </Link>
               ))}

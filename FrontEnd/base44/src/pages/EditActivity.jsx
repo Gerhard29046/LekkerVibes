@@ -37,8 +37,20 @@ export default function EditActivity() {
     }
     eventCategoriesApi.list().then(setCategories).catch(() => setCategories([]));
     if (user) communitiesApi.myMemberships(user.uid).then(setClubs).catch(() => setClubs([]));
-    eventsApi.get(id, user?.uid).then(activity => {
-      if (!activity || activity.organiserId !== user?.uid) {
+    eventsApi.get(id, user?.uid).then(async (activity) => {
+      if (!activity) {
+        setNotAllowed(true);
+        return;
+      }
+      // The host can always edit; for a group-linked event, the
+      // community's owner/moderator can too (matches Firebase/
+      // firestore.rules' isCommunityAdminFor()).
+      let canEdit = activity.organiserId === user?.uid;
+      if (!canEdit && activity.communityId && user) {
+        const membership = await communitiesApi.get(activity.communityId, user.uid);
+        canEdit = membership?.ownerId === user.uid || membership?.myMembership?.role === 'organiser';
+      }
+      if (!canEdit) {
         setNotAllowed(true);
         return;
       }
@@ -76,7 +88,7 @@ export default function EditActivity() {
         <Navbar />
         <div className="pt-20 flex flex-col items-center justify-center min-h-[60vh]">
           <h2 className="font-heading text-2xl font-bold text-charcoal mb-2">Can't edit this activity</h2>
-          <p className="text-sm text-charcoal/60 mb-4">Only the organiser can edit it.</p>
+          <p className="text-sm text-charcoal/60 mb-4">Only the host, or the community's owner/moderator, can edit it.</p>
           <Link to={`/activity/${id}`} className="text-ocean text-sm font-medium">Back to activity</Link>
         </div>
       </div>
@@ -108,7 +120,7 @@ export default function EditActivity() {
         communityId: form.communityId || null,
         category: form.category || null,
         mood: form.mood || null,
-      });
+      }, user);
       navigate(`/activity/${id}`);
     } finally {
       setSaving(false);

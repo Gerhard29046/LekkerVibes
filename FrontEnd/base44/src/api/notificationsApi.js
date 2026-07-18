@@ -35,6 +35,28 @@ export const notificationsApi = {
     return deleteDoc(doc(db, 'users', uid, 'notifications', notificationId));
   },
 
+  // An admin invited you to a community — consent-based, like every other
+  // cross-user relationship in this app (follow requests, social-link
+  // reveals): this is the ONLY thing "search users to add" does. It never
+  // silently creates the invitee's membership doc itself — accepting is a
+  // normal self-write to communities/{id}/members/{uid} the invitee makes
+  // themselves (see communitiesApi.join()), same as any other join.
+  notifyCommunityInvite(inviterUid, inviteeUid, community) {
+    if (inviterUid === inviteeUid) return Promise.resolve();
+    return setDoc(doc(db, 'users', inviteeUid, 'notifications', `community_invite_${community.id}`), {
+      type: 'community_invite',
+      fromUid: inviterUid,
+      targetId: community.id,
+      communityName: community.name,
+      // Carried along so accepting still works for an invite-only
+      // community — communitiesApi.join()'s rule needs the exact token,
+      // and the invitee otherwise has no way to obtain it themselves.
+      inviteToken: community.joinPolicy === 'invite_only' ? community.inviteToken : null,
+      read: false,
+      createdAt: serverTimestamp(),
+    });
+  },
+
   // Someone joined (or waitlisted for) your event. Deterministic id so a
   // repeat join (leave-then-rejoin) replaces rather than piles up.
   notifyEventJoin(hostUid, joiner, event) {
@@ -49,12 +71,31 @@ export const notificationsApi = {
     }).catch(() => {});
   },
 
-  // Fired on cancellation only, not every field edit — see eventsApi.cancel().
   async notifyEventCancelled(attendeeUids, host, event) {
     await Promise.all(
       attendeeUids.filter((uid) => uid !== host.uid).map((uid) =>
         setDoc(doc(db, 'users', uid, 'notifications', `event_update_${event.id}`), {
           type: 'event_update',
+          changeType: 'cancelled',
+          fromUid: host.uid,
+          targetId: event.id,
+          eventTitle: event.title,
+          read: false,
+          createdAt: serverTimestamp(),
+        }).catch(() => {})
+      )
+    );
+  },
+
+  // Date/time/capacity edits (not cancellation — see notifyEventCancelled)
+  // — same 'event_update' type, distinguished by changeType so the
+  // notification panel can word it differently.
+  async notifyEventUpdated(attendeeUids, host, event) {
+    await Promise.all(
+      attendeeUids.filter((uid) => uid !== host.uid).map((uid) =>
+        setDoc(doc(db, 'users', uid, 'notifications', `event_update_${event.id}`), {
+          type: 'event_update',
+          changeType: 'updated',
           fromUid: host.uid,
           targetId: event.id,
           eventTitle: event.title,

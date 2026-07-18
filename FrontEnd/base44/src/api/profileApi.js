@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, query, where, orderBy, limit as fsLimit, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 
 // Fields a user is allowed to write to their own profile. `role` and
@@ -45,6 +45,27 @@ export const DEFAULT_PRIVACY = {
 };
 
 export const profileApi = {
+  // Prefix match on displayName — `users/{uid}` is broadly readable
+  // (see Firebase/firestore.rules), so a single-field range query needs
+  // no composite index. `searchableProfile: false` is filtered client
+  // -side after fetching rather than as a query equality filter, since
+  // combining that with the range filter above would need one.
+  async searchByName(search, max = 10) {
+    const needle = search?.trim();
+    if (!needle) return [];
+    const snap = await getDocs(query(
+      collection(db, 'users'),
+      orderBy('displayName'),
+      where('displayName', '>=', needle),
+      where('displayName', '<=', needle + ''),
+      fsLimit(max * 2),
+    ));
+    return snap.docs
+      .map((d) => ({ uid: d.id, ...d.data() }))
+      .filter((u) => u.privacy?.searchableProfile !== false)
+      .slice(0, max);
+  },
+
   async get(uid) {
     const snap = await getDoc(doc(db, 'users', uid));
     return snap.exists() ? { id: snap.id, ...snap.data() } : null;

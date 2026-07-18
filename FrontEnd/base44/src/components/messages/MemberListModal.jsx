@@ -3,30 +3,105 @@ import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { communitiesApi } from '@/api/communitiesApi';
 import { isOnline } from '@/lib/presence';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Crown, ShieldCheck, MoreVertical } from 'lucide-react';
+import { useClickOutside } from '@/hooks/useClickOutside.jsx';
+
+function RoleBadge({ isOwner, isModerator }) {
+  if (isOwner) return <Crown className="w-3.5 h-3.5 text-peach shrink-0" title="Owner" />;
+  if (isModerator) return <ShieldCheck className="w-3.5 h-3.5 text-teal shrink-0" title="Moderator" />;
+  return null;
+}
+
+function MemberRow({ row, ownerId, viewerUid, isOwner, isAdmin, onOpenChange, onRemove, onToggleRole }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = React.useCallback(() => setMenuOpen(false), []);
+  const menuRef = useClickOutside(menuOpen, closeMenu);
+  const rowIsOwner = row.uid === ownerId;
+  const isSelf = row.uid === viewerUid;
+  // Admins can manage regular members' membership; only the owner can
+  // touch another moderator's role, and nobody but the owner can ever
+  // remove the owner's own row (that's a "leave"/"delete community"
+  // decision, not something another admin can force).
+  const canManage = isAdmin && !isSelf && !rowIsOwner;
+  const canPromote = isOwner && !isSelf && !rowIsOwner;
+
+  return (
+    <div className="flex items-center gap-3 px-5 py-2.5 hover:bg-sand/40 transition-colors">
+      <Link to={`/u/${row.uid}`} onClick={() => onOpenChange(false)} className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="relative shrink-0">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-ocean to-teal flex items-center justify-center overflow-hidden">
+            {row.photoURL
+              ? <img src={row.photoURL} alt={row.displayName} className="w-full h-full object-cover" />
+              : <span className="text-white text-xs font-bold">{(row.displayName || '?')[0].toUpperCase()}</span>}
+          </div>
+          {isOnline(row.lastActiveAt) && (
+            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-leaf border-2 border-white" />
+          )}
+        </div>
+        <span className="truncate text-sm font-medium text-charcoal flex-1">{row.displayName}</span>
+        <RoleBadge isOwner={rowIsOwner} isModerator={row.role === 'organiser'} />
+      </Link>
+      {(canManage || canPromote) && (
+        <div ref={menuRef} className="relative shrink-0">
+          <button onClick={() => setMenuOpen((o) => !o)} className="p-1.5 text-charcoal/40 hover:text-charcoal transition-colors" aria-haspopup="menu" aria-expanded={menuOpen}>
+            <MoreVertical className="w-4 h-4" />
+          </button>
+          {menuOpen && (
+            <div role="menu" className="absolute right-0 top-[calc(100%+4px)] z-20 min-w-[160px] overflow-hidden rounded-xl border border-sand bg-white py-1 shadow-2xl">
+              {canPromote && (
+                <button
+                  role="menuitem"
+                  onClick={() => { setMenuOpen(false); onToggleRole(row.uid, row.role); }}
+                  className="w-full text-left px-4 py-2 text-sm text-charcoal hover:bg-sand transition-colors"
+                >
+                  {row.role === 'organiser' ? 'Demote to member' : 'Promote to moderator'}
+                </button>
+              )}
+              {canManage && (
+                <button
+                  role="menuitem"
+                  onClick={() => { setMenuOpen(false); onRemove(row.uid); }}
+                  className="w-full text-left px-4 py-2 text-sm text-coral hover:bg-sand transition-colors"
+                >
+                  Remove from community
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Same paginate-not-fetch-everything popup pattern as FollowListModal, for
 // a community's full member list (not just who's online) — reused for
 // both "See all" under Members online and tapping the member count in
-// the thread header.
-export default function MemberListModal({ open, onOpenChange, communityId }) {
+// the thread header. Owner/moderator admin actions (remove, promote/
+// demote) live in each row's overflow menu, gated by the viewer's role.
+export default function MemberListModal({ open, onOpenChange, communityId, ownerId, viewerUid, isOwner, isAdmin }) {
   const [items, setItems] = useState([]);
   const [cursor, setCursor] = useState(null);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
-    setItems([]);
-    setCursor(null);
-    setHasMore(false);
+  const load = () => {
     setLoading(true);
     communitiesApi.membersPage(communityId, {}).then((page) => {
       setItems(page.items);
       setCursor(page.cursor);
       setHasMore(page.hasMore);
     }).finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    setItems([]);
+    setCursor(null);
+    setHasMore(false);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, communityId]);
 
   const loadMore = async () => {
@@ -41,6 +116,23 @@ export default function MemberListModal({ open, onOpenChange, communityId }) {
     }
   };
 
+  const handleRemove = async (targetUid) => {
+    if (!window.confirm('Remove this member from the community?')) return;
+    await communitiesApi.removeMember(communityId, targetUid);
+    setItems((cur) => cur.filter((r) => r.uid !== targetUid));
+  };
+  const handleToggleRole = async (targetUid, currentRole) => {
+    await communitiesApi.setRole(communityId, targetUid, currentRole === 'organiser' ? 'member' : 'organiser');
+    setItems((cur) => cur.map((r) => r.uid === targetUid ? { ...r, role: currentRole === 'organiser' ? 'member' : 'organiser' } : r));
+  };
+
+  // Owner first, then moderators, then everyone else — each tier keeps
+  // its existing joinedAt-desc order from the page it came from.
+  const sorted = [...items].sort((a, b) => {
+    const rank = (r) => r.uid === ownerId ? 0 : r.role === 'organiser' ? 1 : 2;
+    return rank(a) - rank(b);
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm p-0 overflow-hidden">
@@ -54,28 +146,18 @@ export default function MemberListModal({ open, onOpenChange, communityId }) {
             <p className="text-sm text-charcoal/40 text-center py-10">No members yet.</p>
           ) : (
             <>
-              {items.map((row) => (
-                <Link
+              {sorted.map((row) => (
+                <MemberRow
                   key={row.uid}
-                  to={`/u/${row.uid}`}
-                  onClick={() => onOpenChange(false)}
-                  className="flex items-center gap-3 px-5 py-2.5 hover:bg-sand/40 transition-colors"
-                >
-                  <div className="relative shrink-0">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-ocean to-teal flex items-center justify-center overflow-hidden">
-                      {row.photoURL
-                        ? <img src={row.photoURL} alt={row.displayName} className="w-full h-full object-cover" />
-                        : <span className="text-white text-xs font-bold">{(row.displayName || '?')[0].toUpperCase()}</span>}
-                    </div>
-                    {isOnline(row.lastActiveAt) && (
-                      <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-leaf border-2 border-white" />
-                    )}
-                  </div>
-                  <span className="truncate text-sm font-medium text-charcoal flex-1">{row.displayName}</span>
-                  {row.role === 'organiser' && (
-                    <span className="text-[11px] font-semibold text-ocean shrink-0">Organiser</span>
-                  )}
-                </Link>
+                  row={row}
+                  ownerId={ownerId}
+                  viewerUid={viewerUid}
+                  isOwner={isOwner}
+                  isAdmin={isAdmin}
+                  onOpenChange={onOpenChange}
+                  onRemove={handleRemove}
+                  onToggleRole={handleToggleRole}
+                />
               ))}
               {hasMore && (
                 <div className="px-5 pt-2">

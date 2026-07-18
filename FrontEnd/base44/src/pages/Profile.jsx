@@ -748,7 +748,11 @@ function CommunityMiniCard({ club: c, theme, tall }) {
       <div className="p-2.5 bg-white flex items-center justify-between">
         <div className="min-w-0">
           <p className="text-xs font-semibold text-charcoal line-clamp-1">{c.name}</p>
-          <p className="text-[11px] text-charcoal/50">{c.memberCount != null ? `${c.memberCount} members` : (c.myRole || '')}</p>
+          {c.myRole === 'organiser' ? (
+            <p className="text-[11px] font-medium" style={{ color: theme.primary }}>Admin of {c.name}</p>
+          ) : (
+            <p className="text-[11px] text-charcoal/50">{c.memberCount != null ? `${c.memberCount} members` : (c.myRole || '')}</p>
+          )}
         </div>
         <ChevronRight className="w-3.5 h-3.5 text-charcoal/30 group-hover:translate-x-0.5 transition-transform shrink-0" />
       </div>

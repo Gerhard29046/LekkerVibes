@@ -1,8 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import { Pin, Bell, BellOff, UserPlus, MoreVertical, LogOut, Flag, Check } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Pin, Bell, BellOff, UserPlus, MoreVertical, LogOut, Flag, Pencil } from 'lucide-react';
 import { useClickOutside } from '@/hooks/useClickOutside.jsx';
 
-export default function ChatHeader({ community, onlineCount, isMuted, onToggleMute, onInvite, onOpenMembers, onLeave, onReport, inviteCopied, hasPinned, onShowPinned }) {
+export default function ChatHeader({ community, onlineCount, isMuted, isAdmin, onToggleMute, onInvite, onOpenMembers, onLeave, onReport, hasPinned, onShowPinned }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const menuRef = useClickOutside(menuOpen, closeMenu);
@@ -22,13 +23,22 @@ export default function ChatHeader({ community, onlineCount, isMuted, onToggleMu
         </button>
       </div>
       <div className="flex items-center gap-1.5 shrink-0">
+        {isAdmin && (
+          <Link
+            to={`/club/${community.id}/edit`}
+            title="Edit community"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-charcoal/60 hover:bg-sand/60 transition-colors"
+          >
+            <Pencil className="w-4 h-4" />
+          </Link>
+        )}
         {hasPinned && (
           <button onClick={onShowPinned} title="View pinned message" className="w-9 h-9 rounded-full flex items-center justify-center text-charcoal/60 hover:bg-sand/60 transition-colors">
             <Pin className="w-4 h-4" />
           </button>
         )}
-        <button onClick={onInvite} title="Copy invite link" className="relative w-9 h-9 rounded-full flex items-center justify-center text-charcoal/60 hover:bg-sand/60 transition-colors">
-          {inviteCopied ? <Check className="w-4 h-4 text-leaf" /> : <UserPlus className="w-4 h-4" />}
+        <button onClick={onInvite} title="Invite people" className="w-9 h-9 rounded-full flex items-center justify-center text-charcoal/60 hover:bg-sand/60 transition-colors">
+          <UserPlus className="w-4 h-4" />
         </button>
         <button
           onClick={onToggleMute}

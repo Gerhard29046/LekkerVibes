@@ -1,16 +1,17 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Paperclip, Smile, Send, Loader2 } from 'lucide-react';
+import { Paperclip, Smile, Send, Loader2, Megaphone } from 'lucide-react';
 import { useClickOutside } from '@/hooks/useClickOutside.jsx';
 import { uploadsApi } from '@/api/uploadsApi';
 
 const EMOJI_SET = ['😀', '😂', '😍', '🥰', '😎', '🤔', '👍', '🙌', '🔥', '❤️', '🎉', '🏔️', '🥾', '🏃', '🌊', '☀️', '🙏', '👏', '😢', '😮'];
 
-export default function MessageComposer({ communityName, onSend, onSendImage, currentUser }) {
+export default function MessageComposer({ communityName, onSend, onSendImage, onSendAnnouncement, isAdmin, currentUser }) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [gifNotice, setGifNotice] = useState(false);
+  const [announcementMode, setAnnouncementMode] = useState(false);
   const fileInputRef = useRef(null);
   const closeEmoji = useCallback(() => setEmojiOpen(false), []);
   const emojiRef = useClickOutside(emojiOpen, closeEmoji);
@@ -19,8 +20,10 @@ export default function MessageComposer({ communityName, onSend, onSendImage, cu
     if (!text.trim() || sending) return;
     setSending(true);
     try {
-      await onSend(text.trim());
+      if (announcementMode) await onSendAnnouncement(text.trim());
+      else await onSend(text.trim());
       setText('');
+      setAnnouncementMode(false);
     } finally {
       setSending(false);
     }
@@ -48,6 +51,18 @@ export default function MessageComposer({ communityName, onSend, onSendImage, cu
 
   return (
     <div className="border-t border-sand bg-white px-4 py-3">
+      {isAdmin && (
+        <div className="max-w-3xl mx-auto mb-2">
+          <button
+            onClick={() => setAnnouncementMode((m) => !m)}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+              announcementMode ? 'bg-coral text-white' : 'bg-sand/60 text-charcoal/60 hover:bg-sand'
+            }`}
+          >
+            <Megaphone className="w-3.5 h-3.5" /> {announcementMode ? 'Posting as announcement' : 'Post announcement'}
+          </button>
+        </div>
+      )}
       <div className="flex items-end gap-2 max-w-3xl mx-auto">
         <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFilePick} />
         <button
@@ -59,12 +74,12 @@ export default function MessageComposer({ communityName, onSend, onSendImage, cu
           {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
         </button>
 
-        <div className="flex-1 flex items-center gap-2 px-4 py-2.5 rounded-full bg-sand/60">
+        <div className={`flex-1 flex items-center gap-2 px-4 py-2.5 rounded-full transition-colors ${announcementMode ? 'bg-coral/10 border border-coral/30' : 'bg-sand/60'}`}>
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={`Message ${communityName}...`}
+            placeholder={announcementMode ? `Announce something to ${communityName}...` : `Message ${communityName}...`}
             className="w-full bg-transparent text-sm focus:outline-none placeholder:text-charcoal/40"
           />
         </div>
@@ -106,7 +121,9 @@ export default function MessageComposer({ communityName, onSend, onSendImage, cu
         <button
           onClick={handleSend}
           disabled={!text.trim() || sending}
-          className="w-10 h-10 rounded-full bg-coral text-white flex items-center justify-center hover:bg-coral/90 transition-colors disabled:opacity-40 shrink-0"
+          className={`w-10 h-10 rounded-full text-white flex items-center justify-center transition-colors disabled:opacity-40 shrink-0 ${
+            announcementMode ? 'bg-charcoal hover:bg-charcoal/90' : 'bg-coral hover:bg-coral/90'
+          }`}
         >
           {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
         </button>
