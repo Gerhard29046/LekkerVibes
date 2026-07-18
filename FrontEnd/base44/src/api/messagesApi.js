@@ -17,9 +17,28 @@ import { db } from '@/lib/firebaseClient';
 // module per resource" convention.
 
 export const messagesApi = {
+  // Enriches the raw conversation doc with the `.community`/`.event`
+  // sub-object GroupChat.jsx's header/back-link expects (name/title only —
+  // this is a chat header, not a place to leak the full parent document).
   conversation: async (conversationId) => {
     const snap = await getDoc(doc(db, 'conversations', conversationId));
-    return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+    if (!snap.exists()) return null;
+    const data = snap.data();
+    if (data.type === 'community' && data.communityId) {
+      const communitySnap = await getDoc(doc(db, 'communities', data.communityId));
+      return {
+        id: snap.id, ...data,
+        community: communitySnap.exists() ? { id: communitySnap.id, name: communitySnap.data().name } : null,
+      };
+    }
+    if (data.type === 'event' && data.eventId) {
+      const eventSnap = await getDoc(doc(db, 'events', data.eventId));
+      return {
+        id: snap.id, ...data,
+        event: eventSnap.exists() ? { id: eventSnap.id, title: eventSnap.data().title } : null,
+      };
+    }
+    return { id: snap.id, ...data };
   },
 
   // Firestore's onSnapshot listener replaces polling entirely — there's no

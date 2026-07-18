@@ -1,22 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Star, Bookmark, CalendarPlus, ExternalLink, Info, Clock, CheckCircle2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { MapPin, Star, Bookmark, CalendarPlus, ExternalLink, Info, Clock, CheckCircle2, PartyPopper } from 'lucide-react';
 import { placePhotoUrl } from '@/api/discoverApi';
 import { savedApi, plansApi } from '@/api/savedApi';
 import { visitedPlacesApi } from '@/api/visitedPlacesApi';
 import { activityApi } from '@/api/activityApi';
+import { eventsApi } from '@/api/eventsApi';
 import { useAuth } from '@/lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getCategoryTheme } from '@/lib/categoryTheme';
+import CreateActivityModal from './CreateActivityModal';
 
 // Google Places results, rendered as LekkerVibes cards — never a bare list
 // of Google search results. "Place"/"Club"/"Venue"/"Community"/"Activity
 // provider" only, never labelled an "event" (Places has no date/time data).
-export default function DiscoverPlaceCard({ place }) {
+export default function DiscoverPlaceCard({ place, city }) {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [saved, setSaved] = useState(false);
   const [planned, setPlanned] = useState(false);
   const [visited, setVisited] = useState(false);
+  const [upcomingCount, setUpcomingCount] = useState(0);
+  const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -24,6 +29,10 @@ export default function DiscoverPlaceCard({ place }) {
     plansApi.has(user.uid, place.placeId).then(setPlanned);
     visitedPlacesApi.has(user.uid, place.placeId).then(setVisited);
   }, [user, place.placeId]);
+
+  useEffect(() => {
+    eventsApi.countUpcomingForPlace(place.placeId).then(setUpcomingCount).catch(() => {});
+  }, [place.placeId]);
 
   const imageSrc = placePhotoUrl(place.photoUrl) ||
     'https://images.unsplash.com/photo-1543007630-9710e4a00a20?w=600';
@@ -87,6 +96,11 @@ export default function DiscoverPlaceCard({ place }) {
   const websiteHref = place.websiteUrl || place.googleMapsUrl;
   const categoryTheme = getCategoryTheme(place.category);
 
+  const handleCreateActivity = () => {
+    if (!requireAuth()) return;
+    setCreateOpen(true);
+  };
+
   return (
     <div className="discover-card rounded-xl overflow-hidden flex flex-col">
       <div className="discover-card-photo-wrap relative aspect-[4/3] overflow-hidden">
@@ -141,6 +155,25 @@ export default function DiscoverPlaceCard({ place }) {
           </div>
         )}
 
+        {upcomingCount > 0 && (
+          <Link
+            to={`/discover?city=${encodeURIComponent(city || '')}&search=${encodeURIComponent(place.name)}`}
+            className="flex items-center gap-1.5 text-xs font-medium mb-3 hover:underline"
+            style={{ color: 'var(--lv-coral)' }}
+          >
+            <PartyPopper className="w-3.5 h-3.5" />
+            {upcomingCount} {upcomingCount === 1 ? 'activity' : 'activities'} happening here
+          </Link>
+        )}
+
+        {/* "Create activity" is the one filled/accent action on this card —
+            creating a joinable event is the higher-intent action LekkerVibes
+            wants to encourage, so "Visit website" is demoted to ghost. */}
+        <button onClick={handleCreateActivity}
+          className="discover-btn-accent flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold mb-2">
+          <CalendarPlus className="w-3.5 h-3.5" /> Create activity
+        </button>
+
         <div className="mt-auto grid grid-cols-2 gap-2 pt-3" style={{ borderTop: '0.5px solid var(--lv-border-onteal)' }}>
           <button onClick={handleSave}
             className={`discover-btn-ghost flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium ${saved ? 'discover-btn-ghost-active' : ''}`}>
@@ -155,7 +188,7 @@ export default function DiscoverPlaceCard({ place }) {
             <Info className="w-3.5 h-3.5" /> View details
           </a>
           <a href={websiteHref} target="_blank" rel="noopener noreferrer nofollow"
-            className="discover-btn-accent flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium">
+            className="discover-btn-ghost flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium">
             <ExternalLink className="w-3.5 h-3.5" /> Visit website
           </a>
         </div>
@@ -167,6 +200,8 @@ export default function DiscoverPlaceCard({ place }) {
           <CheckCircle2 className="w-3.5 h-3.5" /> {visited ? "You've visited this" : 'Mark as visited'}
         </button>
       </div>
+
+      <CreateActivityModal place={place} city={city} open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
 }

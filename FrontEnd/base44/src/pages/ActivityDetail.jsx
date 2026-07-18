@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { eventsApi } from '@/api/eventsApi';
 import { reportsApi } from '@/api/reportsApi';
 import { savedApi } from '@/api/savedApi';
@@ -9,7 +9,7 @@ import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 import {
   MapPin, Clock, Calendar, Users, Share2, ExternalLink, Bookmark,
-  ArrowLeft, AlertTriangle, MessageCircle, Flag, Loader2, Pencil, Lock, Navigation
+  ArrowLeft, AlertTriangle, MessageCircle, Flag, Loader2, Pencil, Lock, Navigation, Link2, Check
 } from 'lucide-react';
 import moment from 'moment';
 import { FEATURES } from '@/lib/featureFlags';
@@ -17,23 +17,61 @@ import ComingSoon from '@/components/ComingSoon';
 
 export default function ActivityDetail() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get('token');
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const [activity, setActivity] = useState(null);
+  // Set only when a signed-out-or-not-yet-joined visitor opens an
+  // invite_link event via its token — see the note on the Worker call
+  // below for why that can't just be a normal eventsApi.get().
+  const [invitePreview, setInvitePreview] = useState(null);
+  const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [reported, setReported] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
-  const load = () => {
-    eventsApi.get(id, user?.uid)
-      .then((data) => {
+  const load = async () => {
+    try {
+      const data = await eventsApi.get(id, user?.uid);
+      if (data) {
         setActivity(data);
-        return user ? savedApi.has(user.uid, id) : false;
-      })
-      .then(setSaved)
-      .catch(() => setActivity(null))
-      .finally(() => setLoading(false));
+        setInvitePreview(null);
+        if (data.myAttendance?.status === 'waitlisted') {
+          const promoted = await eventsApi.tryPromoteSelf(id, user).catch(() => false);
+          if (promoted) {
+            const refreshed = await eventsApi.get(id, user?.uid);
+            setActivity(refreshed);
+          }
+        }
+        if (data.visibility === 'public') {
+          eventsApi.goingAttendees(id).then(setAttendees).catch(() => setAttendees([]));
+        }
+        if (user) setSaved(await savedApi.has(user.uid, id));
+        return;
+      }
+      throw new Error('not-found');
+    } catch {
+      // Not readable via the normal path — could be an invite_link event
+      // the caller hasn't joined yet. A Firestore rule can only ever check
+      // resource.data/request.auth, never "did this request supply the
+      // right token," so that comparison happens server-side instead (see
+      // Worker/src/routes/events.ts) — this returns just enough to preview
+      // and decide whether to join, not the full event document.
+      if (inviteToken) {
+        const preview = await eventsApi.resolveInvite(inviteToken).catch(() => null);
+        if (preview && preview.id === id) {
+          setInvitePreview(preview);
+          setActivity(null);
+        } else {
+          setActivity(null);
+        }
+      } else {
+        setActivity(null);
+      }
+    }
   };
 
   useEffect(() => {
@@ -42,7 +80,7 @@ export default function ActivityDetail() {
       return;
     }
     setLoading(true);
-    load();
+    load().finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, user?.uid]);
 
@@ -56,6 +94,56 @@ export default function ActivityDetail() {
         <Navbar />
         <div className="pt-20 flex items-center justify-center min-h-[60vh]">
           <div className="w-8 h-8 border-4 border-sand border-t-ocean rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!activity && invitePreview) {
+    const handleJoinViaInvite = async () => {
+      if (!isAuthenticated) {
+        navigate('/login');
+        return;
+      }
+      setActionLoading(true);
+      try {
+        // Allowed even though the full event isn't readable yet — an
+        // attendee doc is a self-write regardless of the parent event's
+        // visibility (see Firebase/firestore.rules). Once it exists, the
+        // isEventAttendee() read branch opens up the full event for us.
+        await eventsApi.join(id, user);
+        await load();
+      } finally {
+        setActionLoading(false);
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-cream">
+        <Navbar />
+        <div className="pt-24 pb-16 px-4 flex flex-col items-center justify-center min-h-[70vh]">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-sand p-6 text-center">
+            {invitePreview.placePhotoUrl && (
+              <img src={invitePreview.placePhotoUrl} alt="" className="w-full h-40 object-cover rounded-xl mb-4" />
+            )}
+            <p className="text-xs font-medium text-ocean uppercase tracking-wide mb-2">You've been invited</p>
+            <h2 className="font-heading text-xl font-bold text-charcoal mb-2">{invitePreview.title}</h2>
+            {invitePreview.placeName && <p className="text-sm text-charcoal/60 mb-1">at {invitePreview.placeName}</p>}
+            {invitePreview.date && (
+              <p className="text-sm text-charcoal/60 mb-4">
+                {moment(invitePreview.date).format('dddd, D MMMM YYYY')}
+                {invitePreview.startTime ? ` · ${moment(invitePreview.startTime, 'HH:mm').format('h:mm A')}` : ''}
+              </p>
+            )}
+            <p className="text-xs text-charcoal/50 mb-5">Hosted by {invitePreview.organiserName}</p>
+            <button
+              onClick={handleJoinViaInvite}
+              disabled={actionLoading}
+              className="w-full py-3 bg-gradient-to-r from-ocean to-teal text-white font-semibold rounded-xl text-sm hover:shadow-lg transition-all disabled:opacity-60"
+            >
+              {actionLoading ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : 'Join this activity'}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -77,7 +165,12 @@ export default function ActivityDetail() {
   const timeFormatted = activity.startTime ? moment(activity.startTime, 'HH:mm').format('h:mm A') : null;
   const isOrganiser = activity.organiserId === user?.uid;
   const isGoing = activity.myAttendance?.status === 'going';
+  const isWaitlisted = activity.myAttendance?.status === 'waitlisted';
   const spotsRemaining = activity.capacity != null ? Math.max(activity.capacity - activity.attendeeCount, 0) : null;
+  const isFull = activity.capacity != null && activity.attendeeCount >= activity.capacity;
+  const inviteUrl = activity.visibility === 'invite_link' && activity.inviteToken
+    ? `${window.location.origin}/activity/${activity.id}?token=${activity.inviteToken}`
+    : null;
 
   const requireAuth = () => {
     if (!isAuthenticated) {
@@ -87,11 +180,13 @@ export default function ActivityDetail() {
     return true;
   };
 
-  const handleRsvp = async (status) => {
+  // Capacity-aware — may land on 'waitlisted' instead of 'going' if the
+  // event is full (see eventsApi.join()).
+  const handleJoin = async () => {
     if (!requireAuth()) return;
     setActionLoading(true);
     try {
-      await eventsApi.rsvp(activity.id, user, status);
+      const { status } = await eventsApi.join(activity.id, user);
       if (status === 'going') {
         activityApi.record(user.uid, 'going_event', { eventId: activity.id, eventTitle: activity.title }).catch(() => {});
       }
@@ -99,6 +194,24 @@ export default function ActivityDetail() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleRsvp = async (status) => {
+    if (!requireAuth()) return;
+    setActionLoading(true);
+    try {
+      await eventsApi.rsvp(activity.id, user, status);
+      load();
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCopyInviteLink = async () => {
+    if (!inviteUrl) return;
+    await navigator.clipboard.writeText(inviteUrl).catch(() => {});
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
   };
 
   const handleLeave = async () => {
@@ -176,6 +289,11 @@ export default function ActivityDetail() {
                 <Lock className="w-3 h-3" /> Members only
               </span>
             )}
+            {activity.visibility === 'invite_link' && (
+              <span className="px-3 py-1 rounded-full bg-charcoal/80 text-white text-xs font-semibold flex items-center gap-1">
+                <Link2 className="w-3 h-3" /> Invite only
+              </span>
+            )}
             {activity.status === 'cancelled' && (
               <span className="px-3 py-1 rounded-full bg-coral/90 text-white text-xs font-semibold">Cancelled</span>
             )}
@@ -221,6 +339,30 @@ export default function ActivityDetail() {
               <h2 className="font-heading text-lg font-semibold text-charcoal mb-4">About this activity</h2>
               <p className="text-sm text-charcoal/70 leading-relaxed whitespace-pre-wrap">{activity.description}</p>
             </div>
+
+            {/* Who's going — public events only; members/invite_link events
+                keep attendee identities within the group itself. */}
+            {activity.visibility === 'public' && attendees.length > 0 && (
+              <div className="bg-white rounded-2xl p-6 border border-sand">
+                <h3 className="font-heading text-base font-semibold text-charcoal mb-3">Who's going</h3>
+                <div className="flex items-center">
+                  {attendees.map((a, i) => (
+                    <Link
+                      key={a.uid}
+                      to={`/u/${a.uid}`}
+                      title={a.displayName}
+                      className="w-9 h-9 rounded-full border-2 border-white overflow-hidden bg-gradient-to-br from-ocean to-teal flex items-center justify-center text-white text-xs font-bold shrink-0"
+                      style={{ marginLeft: i === 0 ? 0 : -10, zIndex: attendees.length - i }}
+                    >
+                      {a.photoURL ? <img src={a.photoURL} alt={a.displayName} className="w-full h-full object-cover" /> : (a.displayName || '?')[0]}
+                    </Link>
+                  ))}
+                  <span className="ml-3 text-xs text-charcoal/50">
+                    {activity.attendeeCount} going{activity.capacity ? ` · ${activity.capacity} spots` : ''}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {activity.address && (
               <div className="bg-white rounded-2xl p-6 border border-sand">
@@ -276,15 +418,20 @@ export default function ActivityDetail() {
               )}
 
               <button
-                onClick={() => isGoing ? handleLeave() : handleRsvp('going')}
+                onClick={() => (isGoing || isWaitlisted) ? handleLeave() : handleJoin()}
                 disabled={actionLoading || activity.status === 'cancelled'}
                 className={`w-full py-3 font-semibold rounded-xl transition-all mb-3 text-sm disabled:opacity-50 ${
-                  isGoing ? 'bg-sand text-charcoal hover:bg-sand/80' : 'bg-gradient-to-r from-ocean to-teal text-white hover:shadow-lg hover:shadow-ocean/20'
+                  (isGoing || isWaitlisted) ? 'bg-sand text-charcoal hover:bg-sand/80' : 'bg-gradient-to-r from-ocean to-teal text-white hover:shadow-lg hover:shadow-ocean/20'
                 }`}
               >
-                {actionLoading ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : isGoing ? "You're going — leave?" : 'Join Activity'}
+                {actionLoading
+                  ? <Loader2 className="w-4 h-4 mx-auto animate-spin" />
+                  : isGoing ? "You're going — leave?"
+                  : isWaitlisted ? "You're on the waitlist — leave?"
+                  : isFull ? 'Join waitlist'
+                  : 'Join Activity'}
               </button>
-              {!isGoing && (
+              {!isGoing && !isWaitlisted && (
                 <button
                   onClick={() => handleRsvp('interested')}
                   disabled={actionLoading || activity.status === 'cancelled'}
@@ -344,19 +491,44 @@ export default function ActivityDetail() {
               </Link>
             </div>
 
-            {/* Group chat CTA */}
-            {activity.community && (
+            {/* Group chat CTA — every event created via "Create activity" has
+                its own dedicated chat (see eventsApi.create()); only
+                attendees can actually read it, so this only shows once
+                the viewer has joined (or hosts it). Older events created
+                before this feature have no chatId and simply don't show it. */}
+            {activity.chatId && (isOrganiser || isGoing || isWaitlisted) && (
               <div className="bg-gradient-to-br from-ocean/5 to-teal/5 rounded-2xl p-5 border border-ocean/10">
                 <div className="flex items-center gap-2 mb-2">
                   <MessageCircle className="w-4 h-4 text-ocean" />
                   <h3 className="font-heading text-sm font-semibold text-charcoal">Group Chat</h3>
                 </div>
                 <p className="text-xs text-charcoal/60 mb-3">
-                  Join the community's group conversation to ask questions and connect with other attendees.
+                  Coordinate with everyone who's joined this activity.
                 </p>
-                <Link to={`/club/${activity.community.id}`} className="block w-full py-2.5 bg-ocean text-white text-xs font-semibold rounded-xl hover:bg-ocean/90 transition-colors text-center">
-                  Go to {activity.community.name}
+                <Link to={`/chat/${activity.chatId}`} className="block w-full py-2.5 bg-ocean text-white text-xs font-semibold rounded-xl hover:bg-ocean/90 transition-colors text-center">
+                  Open group chat
                 </Link>
+              </div>
+            )}
+
+            {/* Invite link — organiser-only, since it's the credential that
+                grants access to an otherwise-unlisted event. */}
+            {isOrganiser && inviteUrl && (
+              <div className="bg-white rounded-2xl p-5 border border-sand">
+                <div className="flex items-center gap-2 mb-2">
+                  <Link2 className="w-4 h-4 text-ocean" />
+                  <h3 className="font-heading text-sm font-semibold text-charcoal">Invite link</h3>
+                </div>
+                <p className="text-xs text-charcoal/60 mb-3">
+                  Anyone with this link can view and join — it won't appear in search or browse.
+                </p>
+                <button
+                  onClick={handleCopyInviteLink}
+                  className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-sand text-charcoal text-xs font-semibold rounded-xl hover:bg-sand/80 transition-colors"
+                >
+                  {linkCopied ? <Check className="w-3.5 h-3.5 text-leaf" /> : <Link2 className="w-3.5 h-3.5" />}
+                  {linkCopied ? 'Copied!' : 'Copy invite link'}
+                </button>
               </div>
             )}
           </div>

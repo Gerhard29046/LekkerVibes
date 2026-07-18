@@ -310,22 +310,55 @@ service cloud.firestore {
 
     // ---------------------------------------------------------------------
     // Events
+    //
+    // `visibility` has three values: 'public' (anyone), 'members' (a
+    // community's own members — the spec's "My community only"), and
+    // 'invite_link' (resolves only via its exact, unguessable inviteToken —
+    // see the note below on why that can't be enforced by a rule alone).
     // ---------------------------------------------------------------------
     match /events/{eventId} {
-      // Members-only events are hidden from non-members; public events are
-      // visible to everyone including signed-out visitors.
-      allow read: if resource.data.visibility != 'members'
-                  || (request.auth != null
-                      && exists(/databases/$(database)/documents/communities/$(resource.data.communityId)/members/$(request.auth.uid)));
+      function isEventAttendee() {
+        return request.auth != null
+          && exists(/databases/$(database)/documents/events/$(eventId)/attendees/$(request.auth.uid));
+      }
+      // A plain rule has no way to check "did the caller's query include a
+      // `where('inviteToken','==', theRealToken)` filter" — reads only ever
+      // see resource.data and request.auth, never the request's own filter
+      // values. So an unfiltered `list` against this collection could not
+      // be proven safe if invite_link docs were broadly readable, and
+      // Firestore would reject it entirely (same "unprovable query" 403
+      // behaviour already documented in eventsApi.js) UNLESS the requester
+      // is already the host or an attendee — which IS provable per-document
+      // for a scoped `get()`/query on a single known id. The actual token
+      // check happens one layer up: eventsApi.getByInviteToken() queries
+      // `where('inviteToken','==', token)`, and Firestore's query engine
+      // simply returns zero rows for a guessed/wrong token — nobody can
+      // enumerate "all invite_link events" without already holding each
+      // one's real token, which never appears in any generic list/browse
+      // query this app ever issues.
+      allow read: if resource.data.visibility == 'public'
+                  || (resource.data.visibility == 'members'
+                      && request.auth != null
+                      && exists(/databases/$(database)/documents/communities/$(resource.data.communityId)/members/$(request.auth.uid)))
+                  || (request.auth != null && resource.data.organiserId == request.auth.uid)
+                  || isEventAttendee();
       allow create: if request.auth != null
                     && request.resource.data.organiserId == request.auth.uid
+                    && request.resource.data.visibility in ['public', 'members', 'invite_link']
                     && (request.resource.data.communityId == null
                         || exists(/databases/$(database)/documents/communities/$(request.resource.data.communityId)/members/$(request.auth.uid)));
       // Only the organiser may edit or cancel; organiserId itself is fixed.
+      // Cancelling sets status='cancelled' rather than deleting — the
+      // paired chat is archived (a client-side flag flip), never deleted.
       allow update: if request.auth != null && resource.data.organiserId == request.auth.uid
                     && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['organiserId']);
       allow delete: if request.auth != null && resource.data.organiserId == request.auth.uid;
 
+      // status: 'going' | 'interested' | 'waitlisted'. Capacity/waitlist
+      // placement is decided client-side (count then write, same accepted
+      // small race window as elsewhere in this file) — the rule only
+      // enforces *who* may write *their own* attendance record, not which
+      // status value they land in.
       match /attendees/{uid} {
         allow read: if request.auth != null;
         allow create, update: if request.auth != null && request.auth.uid == uid;
@@ -336,7 +369,7 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
     // Conversations — group/community messaging only, never 1:1 DMs.
     //
-    // Two membership shapes are supported on the same collection:
+    // Three membership shapes are supported on the same collection:
     //  - Legacy/generic: an explicit `memberIds` array on the conversation
     //    doc (how the pre-communities test conversations were seeded via
     //    the Worker/admin bootstrap — kept working, not migrated).
@@ -344,6 +377,10 @@ service cloud.firestore {
     //    alongside the community itself, with membership derived from the
     //    community's own /members subcollection instead of a duplicated
     //    array — nothing to keep in sync on join/leave.
+    //  - Event-scoped: conversationId == eventId, same reasoning — the
+    //    event's own /attendees subcollection is the membership source of
+    //    truth, so joining/leaving the event is all that's needed and there
+    //    is nothing else to keep in sync here either.
     // ---------------------------------------------------------------------
     match /conversations/{conversationId} {
       function isLegacyMember() {
@@ -355,17 +392,33 @@ service cloud.firestore {
         return request.auth != null
           && exists(/databases/$(database)/documents/communities/$(conversationId)/members/$(request.auth.uid));
       }
+      function isEventAttendeeOf() {
+        return request.auth != null
+          && exists(/databases/$(database)/documents/events/$(conversationId)/attendees/$(request.auth.uid));
+      }
 
-      allow read: if isLegacyMember() || isCommunityMember();
-      // Only the community's owner creates the paired conversation doc,
-      // at community-creation time, in the same client batch write. Legacy
-      // memberIds-based conversations are Worker/admin-created only (the
-      // Worker's service-account credentials bypass these rules entirely).
+      allow read: if isLegacyMember() || isCommunityMember() || isEventAttendeeOf();
+      // Only the community's owner creates the paired conversation doc, at
+      // community-creation time; only an event's organiser creates its
+      // paired conversation, at event-creation time — both in the same
+      // client batch write as their parent doc. Legacy memberIds-based
+      // conversations are Worker/admin-created only (the Worker's
+      // service-account credentials bypass these rules entirely).
       allow create: if request.auth != null
-                    && request.resource.data.type == 'community'
-                    && request.resource.data.communityId == conversationId
-                    && get(/databases/$(database)/documents/communities/$(conversationId)).data.ownerId == request.auth.uid;
-      allow update, delete: if false;
+                    && ((request.resource.data.type == 'community'
+                         && request.resource.data.communityId == conversationId
+                         && get(/databases/$(database)/documents/communities/$(conversationId)).data.ownerId == request.auth.uid)
+                        || (request.resource.data.type == 'event'
+                            && request.resource.data.eventId == conversationId
+                            && get(/databases/$(database)/documents/events/$(conversationId)).data.organiserId == request.auth.uid));
+      // The host archives the chat (isArchived=true) when cancelling the
+      // event — the only conversation-level field this app ever updates
+      // post-creation.
+      allow update: if request.auth != null
+                    && 'eventId' in resource.data
+                    && get(/databases/$(database)/documents/events/$(conversationId)).data.organiserId == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isArchived']);
+      allow delete: if false;
 
       match /messages/{messageId} {
         // `resource` inside /messages/{messageId} refers to the message
@@ -378,7 +431,8 @@ service cloud.firestore {
         function isMemberOfConversation() {
           return request.auth != null
             && (('memberIds' in conversation() && request.auth.uid in conversation().memberIds)
-                || exists(/databases/$(database)/documents/communities/$(conversationId)/members/$(request.auth.uid)));
+                || exists(/databases/$(database)/documents/communities/$(conversationId)/members/$(request.auth.uid))
+                || exists(/databases/$(database)/documents/events/$(conversationId)/attendees/$(request.auth.uid)));
         }
 
         allow read: if isMemberOfConversation();

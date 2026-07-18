@@ -252,7 +252,7 @@ export default function Discover() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.45, delay: i * 0.08, ease: 'easeOut' }}
               >
-                <DiscoverPlaceCard place={place} />
+                <DiscoverPlaceCard place={place} city={city} />
               </motion.div>
             ))}
           </div>

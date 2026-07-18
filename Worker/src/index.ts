@@ -7,6 +7,7 @@ import { notificationsRoute } from './routes/notifications';
 import { discoverRoute } from './routes/discover';
 import { placesRoute } from './routes/places';
 import { relationshipsRoute } from './routes/relationships';
+import { eventsRoute } from './routes/events';
 import type { Env, Variables } from './types/env';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -29,6 +30,7 @@ v1.route('/', notificationsRoute);
 v1.route('/', discoverRoute);
 v1.route('/', placesRoute);
 v1.route('/', relationshipsRoute);
+v1.route('/', eventsRoute);
 
 app.route('/v1', v1);
 
