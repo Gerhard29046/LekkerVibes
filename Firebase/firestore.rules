@@ -38,6 +38,29 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // Collection-group read access. A nested block like
+    // communities/{communityId}/members/{uid} only governs a get() or a
+    // collection() query scoped to one already-known parent — it does NOT
+    // extend to a collectionGroup() query (which spans every community's
+    // members subcollection at once). Firestore requires a separate
+    // top-level `{path=**}` rule for that query shape, full stop; without
+    // one, the query 403s regardless of how permissive the nested rule is
+    // (confirmed live: collectionGroup('members').where('uid','==',...)
+    // rejected outright even though the nested rule is `allow read: if
+    // true`). Each rule below mirrors its nested counterpart's existing
+    // permission level exactly — this fixes reachability, it isn't a
+    // security change. Add one here whenever a new collectionGroup() query
+    // is introduced against a subcollection name used under multiple
+    // parents.
+    // ---------------------------------------------------------------------
+    match /{path=**}/members/{uid} {
+      allow read: if true; // matches communities/{id}/members/{uid}'s nested rule
+    }
+    match /{path=**}/attendees/{uid} {
+      allow read: if request.auth != null; // matches events/{id}/attendees/{uid}'s nested rule
+    }
+
+    // ---------------------------------------------------------------------
     // Users
     // ---------------------------------------------------------------------
     match /users/{uid} {
