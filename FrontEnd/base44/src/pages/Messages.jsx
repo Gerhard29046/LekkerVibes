@@ -6,6 +6,7 @@ import { communitiesApi } from '@/api/communitiesApi';
 import { messagesApi } from '@/api/messagesApi';
 import { reportsApi } from '@/api/reportsApi';
 import { FEATURES } from '@/lib/featureFlags';
+import { resolveCommunityRole, isCommunityAdmin, isCommunityOwner } from '@/lib/communityRoles';
 import ComingSoon from '@/components/ComingSoon';
 import Navbar from '@/components/landing/Navbar';
 import MessagesSidebar from '@/components/messages/MessagesSidebar';
@@ -120,7 +121,7 @@ export default function Messages() {
     // blocks the write outright) — communities can't go ownerless, and
     // there's no ownership-transfer flow yet, so the honest option is
     // "delete the community instead" via Edit, not a silently-rejected leave.
-    if (community.ownerId === user.uid) {
+    if (isCommunityOwner(resolveCommunityRole(community.ownerId, user.uid, community.myMembership?.role))) {
       window.alert("You're the owner, so you can't leave — delete the community instead from Edit community if you want to shut it down.");
       return;
     }
@@ -149,16 +150,22 @@ export default function Messages() {
     ? messages.find((m) => m.id === community.pinnedMessageId && !m.isDeleted)
     : null;
   const onlineCount = previewMembers.filter((m) => m.lastActiveAt && (Date.now() - (m.lastActiveAt.toDate ? m.lastActiveAt.toDate() : new Date(m.lastActiveAt)).getTime()) < 2 * 60 * 1000).length;
-  const isOrganiser = community?.myMembership?.role === 'organiser' || community?.ownerId === user?.uid;
+  // The one shared resolution point for "what is MY role here" — every
+  // admin control below reads from this instead of recomputing its own
+  // version. `isAdmin` (owner or moderator) gates shared admin actions;
+  // `isOwner` alone gates the two owner-only ones (editing core details,
+  // managing moderators) per the admin-controls spec.
+  const myRole = resolveCommunityRole(community?.ownerId, user?.uid, community?.myMembership?.role);
+  const isAdmin = isCommunityAdmin(myRole);
+  const isOwner = isCommunityOwner(myRole);
   // Owner/moderator badges for message senders — resolved from the same
   // member preview batch the "Members online" panel already loaded, not a
   // per-message lookup. Senders outside that first page (a large, mostly-
   // idle community) simply show no badge — an accepted approximation.
   const roleForUid = (uid) => {
     if (!community) return null;
-    if (community.ownerId === uid) return 'owner';
     const member = previewMembers.find((m) => m.uid === uid);
-    return member?.role === 'organiser' ? 'moderator' : null;
+    return resolveCommunityRole(community.ownerId, uid, member?.role);
   };
 
   return (
@@ -199,7 +206,8 @@ export default function Messages() {
                 onOpenMembers={() => setMembersOpen(true)}
                 onLeave={handleLeave}
                 onReport={handleReport}
-                isAdmin={isOrganiser}
+                isAdmin={isAdmin}
+                isOwner={isOwner}
                 hasPinned={!!community.pinnedMessageId}
                 onShowPinned={() => {
                   if (community.pinnedMessageId) {
@@ -216,7 +224,7 @@ export default function Messages() {
                     key={m.id}
                     message={m}
                     currentUser={user}
-                    isOrganiser={isOrganiser}
+                    isOrganiser={isAdmin}
                     isPinned={community.pinnedMessageId === m.id}
                     senderRole={roleForUid(m.senderId)}
                     onToggleReaction={handleToggleReaction}
@@ -232,7 +240,7 @@ export default function Messages() {
                 onSend={handleSend}
                 onSendImage={handleSendImage}
                 onSendAnnouncement={handleSendAnnouncement}
-                isAdmin={isOrganiser}
+                isAdmin={isAdmin}
                 currentUser={user}
               />
             </div>
@@ -255,8 +263,8 @@ export default function Messages() {
               communityId={community.id}
               ownerId={community.ownerId}
               viewerUid={user?.uid}
-              isOwner={community.ownerId === user?.uid}
-              isAdmin={isOrganiser}
+              isOwner={isOwner}
+              isAdmin={isAdmin}
             />
             <InviteMembersModal open={inviteOpen} onOpenChange={setInviteOpen} community={community} currentUser={user} />
           </>

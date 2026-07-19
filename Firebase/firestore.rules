@@ -304,27 +304,42 @@ service cloud.firestore {
     // Communities / clubs / groups
     // ---------------------------------------------------------------------
     match /communities/{communityId} {
+      // A member's role is 'owner' | 'moderator' | 'member'. 'organiser' is
+      // a legacy synonym for 'moderator' from before the role model was
+      // named explicitly — communities created before that rename still
+      // have their creator's doc stored as 'organiser', and this is
+      // accepted everywhere a moderator-tier check happens rather than
+      // requiring a data migration. New self-seeds always write 'owner'
+      // (see communitiesApi.create()); nothing new ever writes 'organiser'.
+      function isModeratorRole(role) {
+        return role == 'moderator' || role == 'organiser';
+      }
+
       // Public browsing — signed out visitors can view the directory.
       allow read: if true;
       allow create: if request.auth != null
                     && request.resource.data.ownerId == request.auth.uid;
-      // Only the owner or a member with role in [organiser] may edit; the
-      // ownerId field itself can never be reassigned this way.
+      // The owner can change anything (except reassigning ownerId itself).
+      // A moderator may ONLY ever touch pinnedMessageId through this path —
+      // editing core details (name/description/category/imageURL/
+      // joinPolicy/rules/cta*) is owner-only, per the admin-controls spec.
       allow update: if request.auth != null
                     && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerId'])
                     && (resource.data.ownerId == request.auth.uid
                         || (exists(/databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid))
-                            && get(/databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid)).data.role == 'organiser'));
+                            && isModeratorRole(get(/databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid)).data.role)
+                            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinnedMessageId', 'updatedAt'])));
       allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
 
       match /members/{uid} {
         allow read: if true;
-        // Self-join only, and always as a plain member — organiser/moderator
-        // tiers can only be granted by an existing organiser/owner (below),
-        // never self-assigned. The one exception is the community's own
-        // creator, who is allowed to seed their own 'organiser' membership
-        // doc at community-creation time (there's no other member yet who
-        // could grant it to them).
+        // Self-join only, and always as a plain member — the moderator
+        // tier can only be granted by the owner (below, via update), never
+        // self-assigned. The one exception is the community's own
+        // creator, who seeds their own 'owner' membership doc at
+        // community-creation time (there's no other member yet who could
+        // grant it to them, and ownerId on the parent doc already names
+        // them anyway — this just keeps the member doc consistent with it).
         //
         // Invite-only communities: unlike the events invite-link case (a
         // *read* problem a rule can never fully solve — see the note on
@@ -335,28 +350,31 @@ service cloud.firestore {
         // fails the write, no Worker round-trip needed.
         allow create: if request.auth != null && request.auth.uid == uid
                       && (request.resource.data.role == 'member'
-                          || (request.resource.data.role == 'organiser'
+                          || (request.resource.data.role == 'owner'
                               && get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId == uid))
                       && (get(/databases/$(database)/documents/communities/$(communityId)).data.joinPolicy != 'invite_only'
                           || get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId == uid
                           || request.resource.data.joinToken == get(/databases/$(database)/documents/communities/$(communityId)).data.inviteToken);
         // Two ways a member doc gets deleted: (1) self-leave, blocked for
         // the owner (must delete the community instead — never leave it
-        // ownerless); (2) an owner/organiser removing someone else, which
-        // can never target the owner's own row (only the owner can ever
-        // remove that one, via self-leave, which is itself blocked — i.e.
-        // the owner's row is simply undeletable through this path, by
-        // design).
+        // ownerless); (2) an admin removing someone else, which can never
+        // target the owner's own row (only the owner can ever remove that
+        // one, via self-leave, which is itself blocked — i.e. the owner's
+        // row is simply undeletable through this path, by design) — and a
+        // moderator may only ever remove a plain 'member', never another
+        // moderator (that stays owner-only, same as promote/demote below).
         allow delete: if request.auth != null
                       && get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId != uid
                       && (request.auth.uid == uid
                           || get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId == request.auth.uid
-                          || get(/databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid)).data.role == 'organiser');
-        // Promote/demote is owner-only — an organiser/moderator can add
-        // and remove regular members (above) but never manage other
-        // moderators, per the role summary.
+                          || (isModeratorRole(get(/databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid)).data.role)
+                              && resource.data.role == 'member'));
+        // Promote/demote is owner-only — a moderator can add/remove plain
+        // members (above) but never manage other moderators. Value is
+        // constrained so this path can't be used to write anything else.
         allow update: if request.auth != null && request.auth.uid != uid
-                      && get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId == request.auth.uid;
+                      && get(/databases/$(database)/documents/communities/$(communityId)).data.ownerId == request.auth.uid
+                      && request.resource.data.role in ['moderator', 'member'];
       }
 
       // "Following" a community/group is a lightweight public subscription
@@ -395,7 +413,7 @@ service cloud.firestore {
       function isCommunityAdminFor(cid) {
         return cid != null && request.auth != null
           && (get(/databases/$(database)/documents/communities/$(cid)).data.ownerId == request.auth.uid
-              || get(/databases/$(database)/documents/communities/$(cid)/members/$(request.auth.uid)).data.role == 'organiser');
+              || get(/databases/$(database)/documents/communities/$(cid)/members/$(request.auth.uid)).data.role in ['moderator', 'organiser']);
       }
       // A plain rule has no way to check "did the caller's query include a
       // `where('inviteToken','==', theRealToken)` filter" — reads only ever
@@ -520,7 +538,7 @@ service cloud.firestore {
         function canPostAnnouncement() {
           return conversation().type == 'community'
             && (get(/databases/$(database)/documents/communities/$(conversation().communityId)).data.ownerId == request.auth.uid
-                || get(/databases/$(database)/documents/communities/$(conversation().communityId)/members/$(request.auth.uid)).data.role == 'organiser');
+                || get(/databases/$(database)/documents/communities/$(conversation().communityId)/members/$(request.auth.uid)).data.role in ['moderator', 'organiser']);
         }
 
         allow read: if isMemberOfConversation();

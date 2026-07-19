@@ -72,6 +72,11 @@ export const communitiesApi = {
 
   // { name, description, city, category, rules, imageURL, joinPolicy }
   //
+  // The creator's own membership doc is seeded with role: 'owner' — see
+  // src/lib/communityRoles.js for the single shared place every screen
+  // resolves a member's role from (owner/moderator/member), rather than
+  // each page recomputing its own version of this check.
+  //
   // joinPolicy: 'open' (default — anyone can self-join) | 'invite_only'
   // (self-join is only accepted if the joiner's membership write carries
   // the matching `inviteToken` — see Firebase/firestore.rules; unlike the
@@ -113,7 +118,7 @@ export const communitiesApi = {
       const batch = writeBatch(db);
       batch.set(doc(db, 'communities', communityRef.id, 'members', currentUser.uid), {
         uid: currentUser.uid,
-        role: 'organiser',
+        role: 'owner',
         joinedAt: serverTimestamp(),
       });
       // Paired chat conversation — conversationId == communityId, see
@@ -188,7 +193,10 @@ export const communitiesApi = {
     };
   },
 
-  // Only an existing organiser (or the owner, enforced by rules) can call this.
+  // Promote/demote — owner-only (enforced by rules, not just this check).
+  // `role` is 'moderator' | 'member'; a member is never promoted straight
+  // to 'owner' this way — ownership only ever moves via the community
+  // doc's own ownerId field, which this never touches.
   setRole(id, targetUid, role) {
     return updateDoc(doc(db, 'communities', id, 'members', targetUid), { role });
   },

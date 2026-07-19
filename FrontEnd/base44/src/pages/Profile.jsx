@@ -11,6 +11,7 @@ import { groupFollowApi } from '@/api/groupFollowApi';
 import { activityApi } from '@/api/activityApi';
 import { socialLinksApi } from '@/api/socialLinksApi';
 import { useAuth } from '@/lib/AuthContext';
+import { resolveCommunityRole, isCommunityAdmin } from '@/lib/communityRoles';
 import { useIsMobile } from '@/hooks/use-mobile.jsx';
 import { getProfileTheme, colorForLabel } from '@/lib/profileThemes';
 import { useAccessibilityPrefs } from '@/lib/accessibilityPrefs';
@@ -736,6 +737,13 @@ function InterestChip({ label, index, reduceMotion, chipStyle = 'vibrant' }) {
 }
 
 function CommunityMiniCard({ club: c, theme, tall }) {
+  const { user } = useAuth();
+  // myMemberships() was called with the current user's own uid, so c.myRole
+  // is always THEIR role here — resolved through the same shared utility
+  // every other admin surface uses, not a raw string comparison, so a
+  // legacy 'organiser' value or the community's own ownerId are both
+  // accounted for correctly.
+  const isAdmin = isCommunityAdmin(resolveCommunityRole(c.ownerId, user?.uid, c.myRole));
   return (
     <Link to={`/club/${c.id}`} className="group rounded-xl overflow-hidden border border-sand transition-all hover:shadow-lg"
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.primary; }}
@@ -748,7 +756,7 @@ function CommunityMiniCard({ club: c, theme, tall }) {
       <div className="p-2.5 bg-white flex items-center justify-between">
         <div className="min-w-0">
           <p className="text-xs font-semibold text-charcoal line-clamp-1">{c.name}</p>
-          {c.myRole === 'organiser' ? (
+          {isAdmin ? (
             <p className="text-[11px] font-medium" style={{ color: theme.primary }}>Admin of {c.name}</p>
           ) : (
             <p className="text-[11px] text-charcoal/50">{c.memberCount != null ? `${c.memberCount} members` : (c.myRole || '')}</p>

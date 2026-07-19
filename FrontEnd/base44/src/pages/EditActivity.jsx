@@ -9,6 +9,7 @@ import Navbar from '@/components/landing/Navbar';
 import { ArrowLeft, Upload, Loader2, Save, Ban } from 'lucide-react';
 import { FEATURES } from '@/lib/featureFlags';
 import ComingSoon from '@/components/ComingSoon';
+import { resolveCommunityRole, isCommunityAdmin } from '@/lib/communityRoles';
 
 const MOODS = [
   'Meet people', 'Be active', 'Something chilled', 'Go out tonight',
@@ -48,7 +49,7 @@ export default function EditActivity() {
       let canEdit = activity.organiserId === user?.uid;
       if (!canEdit && activity.communityId && user) {
         const membership = await communitiesApi.get(activity.communityId, user.uid);
-        canEdit = membership?.ownerId === user.uid || membership?.myMembership?.role === 'organiser';
+        canEdit = isCommunityAdmin(resolveCommunityRole(membership?.ownerId, user.uid, membership?.myMembership?.role));
       }
       if (!canEdit) {
         setNotAllowed(true);

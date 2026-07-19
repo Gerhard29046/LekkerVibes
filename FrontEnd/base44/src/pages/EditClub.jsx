@@ -8,6 +8,7 @@ import Navbar from '@/components/landing/Navbar';
 import { ArrowLeft, Upload, Loader2, Save } from 'lucide-react';
 import { FEATURES } from '@/lib/featureFlags';
 import ComingSoon from '@/components/ComingSoon';
+import { resolveCommunityRole, isCommunityOwner } from '@/lib/communityRoles';
 
 const CATEGORIES = [
   'Running', 'Hiking', 'Surfing', 'Cycling', 'Yoga & Wellness',
@@ -36,7 +37,11 @@ export default function EditClub() {
         setNotAllowed(true);
         return;
       }
-      const canEdit = club.ownerId === user?.uid || club.myMembership?.role === 'organiser';
+      // Editing core community details is owner-only — a promoted
+      // moderator gets every other admin action but not this one (see
+      // Firebase/firestore.rules' community update rule, which enforces
+      // the same restriction server-side, not just here).
+      const canEdit = isCommunityOwner(resolveCommunityRole(club.ownerId, user?.uid, club.myMembership?.role));
       if (!canEdit) {
         setNotAllowed(true);
         return;
@@ -71,7 +76,7 @@ export default function EditClub() {
         <Navbar />
         <div className="pt-20 flex flex-col items-center justify-center min-h-[60vh]">
           <h2 className="font-heading text-2xl font-bold text-charcoal mb-2">Can't edit this community</h2>
-          <p className="text-sm text-charcoal/60 mb-4">You need to be its owner or an organiser.</p>
+          <p className="text-sm text-charcoal/60 mb-4">Only the owner can edit a community's details.</p>
           <Link to={`/club/${id}`} className="text-ocean text-sm font-medium">Back to community</Link>
         </div>
       </div>

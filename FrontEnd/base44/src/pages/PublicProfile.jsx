@@ -9,6 +9,7 @@ import { socialLinksApi, PLATFORMS } from '@/api/socialLinksApi';
 import { reportsApi } from '@/api/reportsApi';
 import { apiClient } from '@/api/apiClient';
 import { useAuth } from '@/lib/AuthContext';
+import { resolveCommunityRole, isCommunityAdmin } from '@/lib/communityRoles';
 import { useClickOutside } from '@/hooks/useClickOutside.jsx';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
@@ -348,7 +349,7 @@ export default function PublicProfile() {
             <div className="flex flex-wrap gap-2">
               {clubs.map(c => (
                 <Link key={c.id} to={`/club/${c.id}`} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-sand text-sm text-charcoal hover:border-ocean/30 transition-colors">
-                  {c.myRole === 'organiser' && <Crown className="w-3.5 h-3.5 text-peach" title="Admin" />}
+                  {isCommunityAdmin(resolveCommunityRole(c.ownerId, uid, c.myRole)) && <Crown className="w-3.5 h-3.5 text-peach" title="Admin" />}
                   {c.name}
                 </Link>
               ))}

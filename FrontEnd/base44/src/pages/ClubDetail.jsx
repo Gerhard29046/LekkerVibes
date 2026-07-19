@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { FEATURES } from '@/lib/featureFlags';
 import ComingSoon from '@/components/ComingSoon';
+import { resolveCommunityRole, isCommunityOwner } from '@/lib/communityRoles';
 
 export default function ClubDetail() {
   const { id } = useParams();
@@ -83,7 +84,12 @@ export default function ClubDetail() {
   }
 
   const isMember = !!club.myMembership;
-  const isOwnerOrOrganiser = club.myMembership?.role === 'organiser' || club.ownerId === user?.uid;
+  // Editing core community details is owner-only (see admin-controls
+  // spec) — a promoted moderator gets every other admin action but not
+  // this one. Resolved from the same members-collection source every
+  // other admin surface uses, not a page-local recomputation.
+  const myRole = resolveCommunityRole(club.ownerId, user?.uid, club.myMembership?.role);
+  const isOwner = isCommunityOwner(myRole);
 
   const handleJoin = async () => {
     if (!isAuthenticated) {
@@ -167,7 +173,7 @@ export default function ClubDetail() {
           >
             <ArrowLeft className="w-4 h-4" /> Communities
           </Link>
-          {isOwnerOrOrganiser && (
+          {isOwner && (
             <Link
               to={`/club/${club.id}/edit`}
               className="flex items-center gap-1.5 px-4 py-2 rounded-full glass-dark text-white text-sm font-medium"
@@ -292,7 +298,7 @@ export default function ClubDetail() {
 
             {/* Invite link — owner-only, since it's the credential that
                 grants access to an otherwise-closed community. */}
-            {club.ownerId === user?.uid && club.joinPolicy === 'invite_only' && club.inviteToken && (
+            {isOwner && club.joinPolicy === 'invite_only' && club.inviteToken && (
               <div className="bg-white rounded-2xl p-5 border border-sand">
                 <div className="flex items-center gap-2 mb-2">
                   <Link2 className="w-4 h-4 text-ocean" />

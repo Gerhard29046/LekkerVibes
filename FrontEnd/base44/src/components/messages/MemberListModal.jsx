@@ -3,12 +3,13 @@ import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { communitiesApi } from '@/api/communitiesApi';
 import { isOnline } from '@/lib/presence';
+import { resolveCommunityRole } from '@/lib/communityRoles';
 import { Loader2, Crown, ShieldCheck, MoreVertical } from 'lucide-react';
 import { useClickOutside } from '@/hooks/useClickOutside.jsx';
 
-function RoleBadge({ isOwner, isModerator }) {
-  if (isOwner) return <Crown className="w-3.5 h-3.5 text-peach shrink-0" title="Owner" />;
-  if (isModerator) return <ShieldCheck className="w-3.5 h-3.5 text-teal shrink-0" title="Moderator" />;
+function RoleBadge({ role }) {
+  if (role === 'owner') return <Crown className="w-3.5 h-3.5 text-peach shrink-0" title="Owner" />;
+  if (role === 'moderator') return <ShieldCheck className="w-3.5 h-3.5 text-teal shrink-0" title="Moderator" />;
   return null;
 }
 
@@ -16,14 +17,15 @@ function MemberRow({ row, ownerId, viewerUid, isOwner, isAdmin, onOpenChange, on
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = React.useCallback(() => setMenuOpen(false), []);
   const menuRef = useClickOutside(menuOpen, closeMenu);
-  const rowIsOwner = row.uid === ownerId;
+  const rowRole = resolveCommunityRole(ownerId, row.uid, row.role);
   const isSelf = row.uid === viewerUid;
-  // Admins can manage regular members' membership; only the owner can
-  // touch another moderator's role, and nobody but the owner can ever
+  // Any admin can manage a plain member; only the owner can touch another
+  // moderator's role or membership, and nobody but the owner can ever
   // remove the owner's own row (that's a "leave"/"delete community"
-  // decision, not something another admin can force).
-  const canManage = isAdmin && !isSelf && !rowIsOwner;
-  const canPromote = isOwner && !isSelf && !rowIsOwner;
+  // decision, not something another admin can force) — mirrors
+  // Firebase/firestore.rules' member delete/update rules exactly.
+  const canManage = !isSelf && rowRole !== 'owner' && (isOwner || (isAdmin && rowRole !== 'moderator'));
+  const canPromote = isOwner && !isSelf && rowRole !== 'owner';
 
   return (
     <div className="flex items-center gap-3 px-5 py-2.5 hover:bg-sand/40 transition-colors">
@@ -39,7 +41,7 @@ function MemberRow({ row, ownerId, viewerUid, isOwner, isAdmin, onOpenChange, on
           )}
         </div>
         <span className="truncate text-sm font-medium text-charcoal flex-1">{row.displayName}</span>
-        <RoleBadge isOwner={rowIsOwner} isModerator={row.role === 'organiser'} />
+        <RoleBadge role={rowRole} />
       </Link>
       {(canManage || canPromote) && (
         <div ref={menuRef} className="relative shrink-0">
@@ -51,10 +53,10 @@ function MemberRow({ row, ownerId, viewerUid, isOwner, isAdmin, onOpenChange, on
               {canPromote && (
                 <button
                   role="menuitem"
-                  onClick={() => { setMenuOpen(false); onToggleRole(row.uid, row.role); }}
+                  onClick={() => { setMenuOpen(false); onToggleRole(row.uid, rowRole); }}
                   className="w-full text-left px-4 py-2 text-sm text-charcoal hover:bg-sand transition-colors"
                 >
-                  {row.role === 'organiser' ? 'Demote to member' : 'Promote to moderator'}
+                  {rowRole === 'moderator' ? 'Demote to member' : 'Promote to moderator'}
                 </button>
               )}
               {canManage && (
@@ -121,15 +123,23 @@ export default function MemberListModal({ open, onOpenChange, communityId, owner
     await communitiesApi.removeMember(communityId, targetUid);
     setItems((cur) => cur.filter((r) => r.uid !== targetUid));
   };
+  // `currentRole` here is the already-resolved role ('owner'/'moderator'/
+  // 'member'/null), not the raw stored value — resolveCommunityRole()
+  // already normalized the legacy 'organiser' synonym, so this only ever
+  // writes the two current values going forward.
   const handleToggleRole = async (targetUid, currentRole) => {
-    await communitiesApi.setRole(communityId, targetUid, currentRole === 'organiser' ? 'member' : 'organiser');
-    setItems((cur) => cur.map((r) => r.uid === targetUid ? { ...r, role: currentRole === 'organiser' ? 'member' : 'organiser' } : r));
+    const nextRole = currentRole === 'moderator' ? 'member' : 'moderator';
+    await communitiesApi.setRole(communityId, targetUid, nextRole);
+    setItems((cur) => cur.map((r) => r.uid === targetUid ? { ...r, role: nextRole } : r));
   };
 
   // Owner first, then moderators, then everyone else — each tier keeps
   // its existing joinedAt-desc order from the page it came from.
   const sorted = [...items].sort((a, b) => {
-    const rank = (r) => r.uid === ownerId ? 0 : r.role === 'organiser' ? 1 : 2;
+    const rank = (r) => {
+      const role = resolveCommunityRole(ownerId, r.uid, r.role);
+      return role === 'owner' ? 0 : role === 'moderator' ? 1 : 2;
+    };
     return rank(a) - rank(b);
   });
 
