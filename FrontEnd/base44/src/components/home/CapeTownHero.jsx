@@ -161,11 +161,11 @@ export default function CapeTownHero({ reduceMotion }) {
             initial={reduceMotion ? false : { opacity: 0, y: 24, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ delay: 0.68, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="relative z-30 rounded-full sm:rounded-full p-2 max-w-2xl"
+            className="relative z-30 w-full md:w-[760px] lg:w-[820px] md:max-w-[calc(100vw-3rem)] rounded-3xl md:rounded-full p-2"
             style={{ background: 'rgba(255,255,255,0.86)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.4)' }}
           >
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <div className="flex-1 flex items-center gap-2 px-4 py-3 rounded-full sm:rounded-l-full sm:rounded-r-none bg-white/0">
+            <div className="flex flex-col md:flex-row md:items-center gap-2">
+              <div className="flex-1 md:min-w-[210px] flex items-center gap-2 px-4 py-3 rounded-full md:rounded-l-full md:rounded-r-none bg-white/0">
                 <Search className="w-4 h-4 text-ocean/60 shrink-0" aria-hidden="true" />
                 <label htmlFor="hero-search-input" className="sr-only">What are you looking for?</label>
                 <input
@@ -179,15 +179,15 @@ export default function CapeTownHero({ reduceMotion }) {
                 />
               </div>
 
-              <div className="hidden sm:block w-px self-stretch bg-charcoal/10" aria-hidden="true" />
+              <div className="hidden md:block w-px self-stretch bg-charcoal/10" aria-hidden="true" />
 
-              <div ref={areaRef} className="relative">
+              <div ref={areaRef} className="relative md:w-[220px] shrink-0">
                 <button
                   onClick={() => setAreaOpen((current) => !current)}
                   aria-haspopup="listbox"
                   aria-expanded={areaOpen}
                   aria-controls="hero-area-listbox"
-                  className="flex items-center gap-2 px-4 py-3 rounded-full text-sm text-charcoal w-full sm:w-auto hover:bg-charcoal/5 transition-colors"
+                  className="flex items-center gap-2 px-4 py-3 rounded-full text-sm text-charcoal w-full hover:bg-charcoal/5 transition-colors"
                 >
                   <MapPin className="w-4 h-4 text-coral shrink-0" />
                   <span className="truncate">{area || 'Anywhere in Cape Town'}</span>
@@ -202,7 +202,7 @@ export default function CapeTownHero({ reduceMotion }) {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -6, scale: 0.98 }}
                       transition={{ duration: 0.18 }}
-                      className="absolute left-0 top-[calc(100%+8px)] z-50 min-w-full sm:min-w-[220px] max-w-[calc(100vw-24px)] overflow-hidden rounded-2xl border border-white/40 bg-white/95 shadow-2xl backdrop-blur-xl"
+                      className="absolute left-0 top-[calc(100%+8px)] z-50 min-w-full md:min-w-[220px] max-w-[calc(100vw-24px)] overflow-hidden rounded-2xl border border-white/40 bg-white/95 shadow-2xl backdrop-blur-xl"
                     >
                       <div className="max-h-80 overflow-y-auto p-2">
                         <button role="option" aria-selected={area === ''} onClick={() => { setArea(''); setAreaOpen(false); }}
@@ -221,10 +221,10 @@ export default function CapeTownHero({ reduceMotion }) {
                 </AnimatePresence>
               </div>
 
-              <div className="hidden sm:block w-px self-stretch bg-charcoal/10" aria-hidden="true" />
+              <div className="hidden md:block w-px self-stretch bg-charcoal/10" aria-hidden="true" />
 
               <button onClick={handleNearMe} disabled={locating}
-                className="flex items-center justify-center gap-2 px-4 py-3 rounded-full text-sm text-charcoal hover:bg-charcoal/5 transition-colors disabled:opacity-60">
+                className="flex shrink-0 items-center justify-center gap-2 px-4 py-3 rounded-full text-sm text-charcoal hover:bg-charcoal/5 transition-colors disabled:opacity-60">
                 <Navigation className={`w-4 h-4 text-coral ${locating ? 'animate-pulse' : ''}`} />
                 Near me
               </button>
@@ -233,7 +233,7 @@ export default function CapeTownHero({ reduceMotion }) {
                 onClick={handleExplore}
                 whileHover={reduceMotion ? {} : { scale: 1.03 }}
                 whileTap={reduceMotion ? {} : { scale: 0.97 }}
-                className="flex items-center justify-center gap-2 px-6 py-3 text-white text-sm font-bold rounded-full shadow-lg transition-shadow hover:shadow-xl"
+                className="flex shrink-0 items-center justify-center gap-2 px-6 py-3 text-white text-sm font-bold rounded-full shadow-lg transition-shadow hover:shadow-xl"
                 style={{ background: 'linear-gradient(135deg, #0F766E, #0D9488)' }}
               >
                 <Sparkles className="w-4 h-4" />
