@@ -6,6 +6,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Search, MapPin, Sparkles, ChevronDown, Navigation, Mountain, ShoppingBasket, UtensilsCrossed, ArrowRight } from 'lucide-react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useClickOutside } from '@/hooks/useClickOutside.jsx';
+import { useAuth } from '@/lib/AuthContext';
 import { capeTownTheme } from '@/config/capeTownTheme';
 import HeroEventCarousel from './HeroEventCarousel';
 
@@ -22,6 +23,7 @@ const SHORTCUT_ICONS = { mountain: Mountain, 'shopping-basket': ShoppingBasket, 
 export default function CapeTownHero({ reduceMotion }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAuthenticated } = useAuth();
   const heroRef = useRef(null);
   const bgRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -279,16 +281,18 @@ export default function CapeTownHero({ reduceMotion }) {
             })}
           </motion.div>
 
-          <motion.div
-            initial={reduceMotion ? false : { opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.2 }}
-            className="mt-6"
-          >
-            <Link to="/register" className="inline-flex items-center gap-1.5 text-sm font-semibold text-white/85 hover:text-white transition-colors">
-              New here? Join LekkerVibes <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </motion.div>
+          {!isAuthenticated && (
+            <motion.div
+              initial={reduceMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.2 }}
+              className="mt-6"
+            >
+              <Link to="/register" className="inline-flex items-center gap-1.5 text-sm font-semibold text-white/85 hover:text-white transition-colors">
+                New here? Join LekkerVibes <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </motion.div>
+          )}
         </div>
       </motion.div>
 
