@@ -1,77 +1,81 @@
-# Base44 Project
+# LekkerVibes
 
-Use this repository to run and edit the app locally, then publish changes back through Base44.
+LekkerVibes is a South African, location-aware platform for discovering
+places, joining communities, and creating or attending activities.
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+> Find your people. Find your place. Find your vibe.
 
-## Prerequisites
+The live application uses React, Firebase, and a Cloudflare Worker. The
+`FrontEnd/base44/` directory name reflects the original UI export; Base44
+is not part of the active runtime.
 
-1. Clone the repository using the project's Git URL.
-2. Navigate to the project directory.
-3. Install dependencies: `npm install`.
-4. Install the Base44 CLI: `npm install -g base44@latest`.
+## Repository
 
-See the [Base44 CLI docs](https://docs.base44.com/developers/references/cli/get-started/overview) if you want to run Base44 commands directly.
-
-## Run Locally
-
-Run the full local development environment from the project root:
-
-```bash
-base44 dev
+```text
+FrontEnd/base44/  React 18 + Vite frontend
+Firebase/         Firestore indexes/rules and Storage rules
+Worker/           Hono Cloudflare Worker
+BackEnd/          Disconnected Laravel/MySQL reference implementation
+documentation/    Architecture, API, decisions, setup, and status
 ```
 
-`base44 dev` starts the local Base44 development backend and, when this app is configured for it, also starts the frontend dev server for you. Use the frontend URL printed by the command.
+## Local Development
 
-For example, when the Base44 project config includes a `serveCommand`, `base44 dev` can launch the frontend too:
+Copy the example environment file and provide the Firebase, Worker, and
+VAPID values used by your environment:
 
-```json5
-{
-  "site": {
-    "serveCommand": "npm run dev"
-  }
-}
+```powershell
+Copy-Item FrontEnd/base44/.env.example FrontEnd/base44/.env.local
 ```
 
-In a Base44 project this lives in `base44/config.jsonc`.
+Start the frontend:
 
-## Run Only The Frontend
-
-If you only want to work on the frontend against the hosted Base44 backend, run:
-
-```bash
+```powershell
+cd FrontEnd/base44
+npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite.
+Start the Worker in another terminal:
 
-## Use The Hosted Backend
-
-For frontend-only development, create or update `.env.local` in the project root:
-
-```bash
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
+```powershell
+cd Worker
+npm install
+npm run dev
 ```
 
-`VITE_BASE44_APP_ID` identifies the Base44 app.
+The frontend defaults to `http://127.0.0.1:5173`. The local Worker defaults
+to `http://127.0.0.1:8787`.
 
-`VITE_BASE44_APP_BASE_URL` tells the Base44 Vite plugin where to send local `/api` requests. Point it at your deployed Base44 app URL when you want the local frontend to use the hosted backend.
+## Validation
 
-When you use `base44 dev`, the command injects the local Base44 values for you, so `.env.local` is mainly needed for frontend-only workflows.
+```powershell
+cd FrontEnd/base44
+npm run build
+npm run lint
+npm run typecheck
 
-## Publish Your Changes
-
-After pushing your changes to git, open the Base44 dashboard and publish the app:
-
-```bash
-base44 dashboard open
+cd ../../Worker
+npm run typecheck
 ```
 
-## Docs & Support
+JavaScript uses gradual type checking: build and ESLint cover the entire
+frontend, while JavaScript files can opt into TypeScript diagnostics with
+`// @ts-check`.
 
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
+## Deployment
 
-Base44 CLI command reference: [https://docs.base44.com/developers/references/cli/commands/introduction](https://docs.base44.com/developers/references/cli/commands/introduction)
+- Frontend: Cloudflare Pages
+- API Worker: Cloudflare Workers via Wrangler
+- Data/Auth/Storage/Messaging: Firebase
 
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+Vite environment variables are embedded at build time. Ensure all
+`VITE_FIREBASE_*`, `VITE_FIREBASE_VAPID_KEY`, and `VITE_API_BASE_URL`
+values are configured in the build environment before deploying.
+
+Never commit `.env.local`, Worker secrets, Firebase service-account
+credentials, or API keys.
+
+See [local setup](documentation/LOCAL_SETUP.md),
+[architecture](documentation/ARCHITECTURE.md), and
+[feature status](documentation/FEATURE_STATUS.md) for more detail.

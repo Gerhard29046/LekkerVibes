@@ -109,7 +109,7 @@ export const notificationsApi = {
   // Lightweight "X new messages in {group}" — deliberately one upserted
   // doc per (recipient, conversation) rather than one row per message, so
   // a busy chat doesn't flood the panel with individual rows or leak
-  // message content into notifications (see CLAUDE.md: no second channel
+  // message content into notifications (see AGENTS.md: no second channel
   // for reading messages outside the chat itself). Best-effort — a failed
   // notification write should never block sending the message it's for.
   async notifyGroupMessage(conversationId, sender) {

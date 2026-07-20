@@ -17,7 +17,7 @@ import CTASection from '@/components/landing/CTASection';
 //
 // The old standalone "Cape Town Spotlight" carousel (components/home/
 // SponsoredSpotlightCarousel.jsx) has been disconnected here, not deleted
-// (see CLAUDE.md's file-deletion policy) — its sponsored-listing content
+// (see AGENTS.md's file-deletion policy) — its sponsored-listing content
 // now lives inside CapeTownHero's continuous event carousel instead, so
 // the same demo/sponsored placements aren't shown twice on one page.
 //

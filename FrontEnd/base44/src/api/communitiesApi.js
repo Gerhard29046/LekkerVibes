@@ -203,7 +203,7 @@ export const communitiesApi = {
 
   // Per-user community mute — self-owned, same shape as followedGroups.
   // Doesn't currently suppress anything server-side (no automatic FCM
-  // send is wired up yet — see CLAUDE.md), it's the persisted preference
+  // send is wired up yet — see AGENTS.md), it's the persisted preference
   // the Messages page's mute toggle reads/writes, ready for whenever a
   // Worker Cron/trigger does start sending message notifications.
   async isMuted(uid, communityId) {

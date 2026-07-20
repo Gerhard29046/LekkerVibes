@@ -1,6 +1,6 @@
-// Single source of truth for what's live in this deployment. Everything
-// still backed by the (now-disconnected) Laravel API is flagged off here
-// rather than deleted — see documentation/FEATURE_STATUS.md.
+// Single source of truth for what the current UI exposes. Most active
+// domains now use Firestore or the Worker; disabled entries remain hidden
+// until their end-to-end behavior is ready — see FEATURE_STATUS.md.
 export const FEATURES = {
   auth: true,
   chat: true,

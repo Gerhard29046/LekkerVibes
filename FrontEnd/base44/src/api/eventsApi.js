@@ -287,7 +287,7 @@ export const eventsApi = {
   // A waitlisted attendee can only ever update their OWN attendee doc (see
   // Firebase/firestore.rules) — there's no Cloud Function/Cron in this
   // architecture to instantly promote the next person the moment a spot
-  // opens up (see CLAUDE.md), so promotion is this opportunistic
+  // opens up (see AGENTS.md), so promotion is this opportunistic
   // self-check instead: call it whenever a waitlisted attendee views the
   // event, and if there's room now, they promote themselves. No stored
   // queue/ordering — first waitlisted viewer to check after a spot opens
