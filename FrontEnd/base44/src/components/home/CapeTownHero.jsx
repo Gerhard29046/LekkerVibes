@@ -85,11 +85,9 @@ export default function CapeTownHero({ reduceMotion }) {
 
   return (
     <section ref={heroRef} className="relative min-h-[850px] lg:min-h-[calc(100vh-72px)] flex flex-col overflow-hidden">
-      {/* A blurred cover layer fills unusually tall/narrow viewports while
-          the sharp desktop layer uses `contain`, preserving the complete
-          mountain range, City Bowl, stadium, harbour and coastline instead
-          of cropping the panorama down to the centre. Mobile keeps `cover`
-          so the city remains large enough to read on a narrow screen. */}
+      {/* The wide panorama uses a lower focal point: `cover` trims excess
+          sky and foreground ocean while keeping the city and full mountain
+          range prominent. */}
       <motion.div
         ref={bgRef}
         initial={reduceMotion ? false : { opacity: 0, scale: 1.05 }}
@@ -99,27 +97,16 @@ export default function CapeTownHero({ reduceMotion }) {
       >
         <img
           src={capeTownTheme.hero.images.primary}
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover scale-110 blur-xl opacity-55"
-        />
-        <img
-          src={capeTownTheme.hero.images.primary}
           alt="Aerial panorama of Cape Town, Table Mountain, the City Bowl and Atlantic coastline"
-          className="relative w-full h-full object-cover md:object-contain"
-          style={{ objectPosition: 'center center' }}
+          className="relative w-full h-full object-cover"
+          style={{ objectPosition: 'center 68%' }}
           onError={(e) => { e.currentTarget.style.display = 'none'; }}
         />
         <div className="absolute inset-0 bg-gradient-to-br from-ocean via-teal to-sky -z-10" />
       </motion.div>
 
-      {/* Two controlled gradients only — top strip for nav readability, a
-          left-side wash for the text column. The centre/right of the
-          mountain is deliberately left bright and uncovered. */}
-      <div
-        className="absolute inset-x-0 top-0 h-40 pointer-events-none"
-        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.12) 24%, transparent 48%)' }}
-      />
+      {/* A single left-side wash keeps the copy readable without tinting
+          the clear blue sky across the top of the hero. */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{ background: 'linear-gradient(90deg, rgba(5,28,36,0.86) 0%, rgba(5,28,36,0.6) 30%, rgba(5,28,36,0.1) 62%, transparent 100%)' }}
