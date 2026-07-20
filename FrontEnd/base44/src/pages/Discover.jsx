@@ -84,29 +84,29 @@ export default function Discover() {
     <div className="discover-theme min-h-screen">
       <Navbar />
 
-      {/* Hero — a photographic Cape Town banner (distinct from the homepage
-          hero image) with a diagonal teal→coral wash so the search row and
-          mood chips stay legible while still tying into the brand palette. */}
-      <section className="relative overflow-hidden min-h-[440px] sm:min-h-[480px] flex flex-col">
+      {/* A full-scale discovery hero using the same wide Cape Town panorama
+          language as the homepage, with a distinct Discover content layout. */}
+      <section className="relative overflow-hidden min-h-[680px] sm:min-h-[740px] lg:min-h-[calc(100vh-66px)] flex flex-col">
         <div className="absolute inset-0">
           <img
-            src={capeTownImages.hero.discover}
-            alt="Cape Town coastline"
+            src={capeTownImages.hero.primary}
+            alt="Aerial panorama of Cape Town, Table Mountain, the City Bowl and Atlantic coastline"
             className="w-full h-full object-cover"
+            style={{ objectPosition: 'center 68%' }}
             onError={(e) => { e.currentTarget.style.display = 'none'; }}
           />
           <div className="absolute inset-0" style={{ background: 'var(--lv-bg-base)', zIndex: -1 }} />
         </div>
         <div
           className="absolute inset-0"
-          style={{ background: 'linear-gradient(160deg, rgba(15,74,74,0.92) 0%, rgba(26,92,82,0.75) 40%, rgba(201,122,74,0.55) 100%)' }}
+          style={{ background: 'linear-gradient(90deg, rgba(5,28,36,0.88) 0%, rgba(5,28,36,0.62) 34%, rgba(5,28,36,0.16) 68%, rgba(5,28,36,0.05) 100%)' }}
         />
 
-        <div className="relative z-10 flex-1 max-w-7xl mx-auto px-4 sm:px-6 pt-28 sm:pt-32 pb-10 sm:pb-14 w-full">
+        <div className="relative z-10 flex-1 max-w-7xl mx-auto px-4 sm:px-6 pt-28 sm:pt-32 lg:pt-36 pb-12 sm:pb-16 w-full">
           <motion.span
             initial={reduceMotion ? false : { opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="block text-[13px] font-semibold uppercase mb-3"
+            className="block text-[13px] font-semibold uppercase mb-5"
             style={{ color: 'var(--lv-teal-light)', letterSpacing: '0.05em' }}
           >
             Discover
@@ -116,16 +116,17 @@ export default function Discover() {
             initial={reduceMotion ? false : { opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 }}
-            className="font-body text-[28px] sm:text-[34px] font-medium leading-tight text-white mb-3"
+            className="font-body text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-extrabold leading-[0.94] tracking-tight text-white mb-5 max-w-4xl"
           >
-            What to do in {city}
+            <span className="block">What to do in</span>
+            <span className="block text-[#F97366]">{city}</span>
           </motion.h1>
 
           <motion.p
             initial={reduceMotion ? false : { opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-[15px] max-w-[480px] mb-8"
+            className="text-base sm:text-lg max-w-[560px] mb-9 font-body leading-relaxed"
             style={{ color: '#cfe8e2' }}
           >
             Real places, clubs and communities near you — powered by Google Places
@@ -135,19 +136,19 @@ export default function Discover() {
             initial={reduceMotion ? false : { opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            className="flex flex-col sm:flex-row gap-3 max-w-2xl mb-6"
+            className="flex flex-col sm:flex-row gap-3 max-w-3xl mb-7"
           >
             <div
-              className="discover-search-panel flex-1 flex items-center gap-2 px-4 py-3 rounded-full"
+              className="discover-search-panel flex-1 flex items-center gap-3 px-5 py-4 rounded-full"
               style={{ background: 'rgba(255,255,255,0.95)' }}
             >
-              <Search className="w-4 h-4 text-charcoal/40 shrink-0" />
+              <Search className="w-5 h-5 text-charcoal/40 shrink-0" />
               <input
                 type="text"
                 placeholder="What are you in the mood for?"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full bg-transparent text-sm text-charcoal placeholder:text-charcoal/40 focus:outline-none"
+                className="w-full bg-transparent text-[15px] text-charcoal placeholder:text-charcoal/40 focus:outline-none"
               />
               {search && (
                 <button onClick={() => setSearch('')} aria-label="Clear search">
@@ -157,7 +158,7 @@ export default function Discover() {
             </div>
             <button
               onClick={handleUseLocation}
-              className={`discover-btn-nearme flex items-center gap-2 px-5 py-3 rounded-full text-sm font-semibold shrink-0 ${coords ? 'discover-btn-nearme-active' : ''}`}
+              className={`discover-btn-nearme flex items-center justify-center gap-2 px-6 py-4 rounded-full text-sm font-semibold shrink-0 ${coords ? 'discover-btn-nearme-active' : ''}`}
             >
               <Navigation className="w-4 h-4" />
               {coords ? 'Using your location' : 'Near me'}
