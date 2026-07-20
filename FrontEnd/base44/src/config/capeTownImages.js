@@ -5,7 +5,7 @@
 // of breaking the whole Vite build the way a missing src/assets import would.
 export const capeTownImages = {
   hero: {
-    primary: '/images/cape-town/hero/table-mountain-clouds.jpg',
+    primary: '/images/cape-town/hero/cape-town-panorama-v2.jpg',
     sunset: '/images/cape-town/hero/twelve-apostles-sunset.jpg',
     discover: '/images/cape-town/hero/cape-town-aerial.jpg',
   },

@@ -85,21 +85,29 @@ export default function CapeTownHero({ reduceMotion }) {
 
   return (
     <section ref={heroRef} className="relative min-h-[850px] lg:min-h-[calc(100vh-72px)] flex flex-col overflow-hidden">
-      {/* Background photo — Table Mountain stays centre/right and bright;
-          content lives on the left, so the framing itself (object-position)
-          does the work rather than a heavy overlay hiding the mountain. */}
+      {/* A blurred cover layer fills unusually tall/narrow viewports while
+          the sharp desktop layer uses `contain`, preserving the complete
+          mountain range, City Bowl, stadium, harbour and coastline instead
+          of cropping the panorama down to the centre. Mobile keeps `cover`
+          so the city remains large enough to read on a narrow screen. */}
       <motion.div
         ref={bgRef}
         initial={reduceMotion ? false : { opacity: 0, scale: 1.05 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
-        className="absolute inset-0 -top-[8%] h-[116%]"
+        className="absolute inset-0 -top-[8%] h-[116%] overflow-hidden bg-[#0a3448]"
       >
         <img
           src={capeTownTheme.hero.images.primary}
-          alt="Table Mountain and the Cape Town coastline at golden hour"
-          className="w-full h-full object-cover"
-          style={{ objectPosition: '64% 42%' }}
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover scale-110 blur-xl opacity-55"
+        />
+        <img
+          src={capeTownTheme.hero.images.primary}
+          alt="Aerial panorama of Cape Town, Table Mountain, the City Bowl and Atlantic coastline"
+          className="relative w-full h-full object-cover md:object-contain"
+          style={{ objectPosition: 'center center' }}
           onError={(e) => { e.currentTarget.style.display = 'none'; }}
         />
         <div className="absolute inset-0 bg-gradient-to-br from-ocean via-teal to-sky -z-10" />
@@ -114,7 +122,7 @@ export default function CapeTownHero({ reduceMotion }) {
       />
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{ background: 'linear-gradient(90deg, rgba(5,28,36,0.9) 0%, rgba(5,28,36,0.68) 30%, rgba(5,28,36,0.14) 62%, transparent 100%)' }}
+        style={{ background: 'linear-gradient(90deg, rgba(5,28,36,0.86) 0%, rgba(5,28,36,0.6) 30%, rgba(5,28,36,0.1) 62%, transparent 100%)' }}
       />
 
       <AmbientHeroMotion reduceMotion={reduceMotion} />
